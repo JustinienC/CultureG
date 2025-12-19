@@ -1,0 +1,4 @@
+Installer les librairies python de vosk, sounddevice scipy numpy avec:
+pip install vosk sounddevice scipy numpy
+
+S'assurer que le dossier vosk-model-small-fr-0.22 est bien dans le même dossier que celui du script python.
