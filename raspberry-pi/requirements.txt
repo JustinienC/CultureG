@@ -1,0 +1,4 @@
+websockets==12.0
+# RPi.GPIO est optionnel - seulement nécessaire sur Raspberry Pi réel
+# RPi.GPIO==0.7.1
+
