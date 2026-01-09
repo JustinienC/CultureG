@@ -1,4 +1,4 @@
-# 🎮 CultureG - Application Mobile
+# 🎮 CultureG - Projet IoT Arduino
 
 Application mobile Android pour configurer et gérer un jeu de culture générale sur Raspberry Pi.
 
