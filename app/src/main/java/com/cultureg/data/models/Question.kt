@@ -4,28 +4,42 @@ import java.util.UUID
 
 /**
  * Modèle de données pour une question de culture générale
+ * Format Question-Réponse (une seule réponse textuelle attendue)
  */
 data class Question(
     val id: String = UUID.randomUUID().toString(),
     val question: String,
-    val answers: List<String>,
-    val correctAnswerIndex: Int,
+    val correctAnswer: String,
     val category: String = "Général",
     val difficulty: Difficulty = Difficulty.MEDIUM,
+    val timeLimit: Int? = null,  // Temps limite en secondes (optionnel)
     val createdAt: Long = System.currentTimeMillis()
 ) {
     /**
-     * Vérifie si une réponse est correcte
+     * Vérifie si une réponse textuelle est correcte
+     * Comparaison insensible à la casse, accents et espaces
      */
-    fun isCorrectAnswer(answerIndex: Int): Boolean {
-        return answerIndex == correctAnswerIndex
+    fun isCorrectAnswer(answer: String): Boolean {
+        return normalizeAnswer(answer) == normalizeAnswer(correctAnswer)
     }
     
     /**
-     * Obtient la réponse correcte
+     * Normalise une réponse pour comparaison
+     * - Convertit en minuscules
+     * - Supprime les accents (approximation)
+     * - Supprime les espaces multiples
+     * - Trim les espaces en début/fin
      */
-    fun getCorrectAnswer(): String {
-        return answers.getOrNull(correctAnswerIndex) ?: ""
+    private fun normalizeAnswer(text: String): String {
+        return text.lowercase()
+            .replace(Regex("[àáâãäå]"), "a")
+            .replace(Regex("[èéêë]"), "e")
+            .replace(Regex("[ìíîï]"), "i")
+            .replace(Regex("[òóôõö]"), "o")
+            .replace(Regex("[ùúûü]"), "u")
+            .replace(Regex("[ç]"), "c")
+            .replace(Regex("\\s+"), " ")
+            .trim()
     }
 }
 

@@ -16,24 +16,22 @@ import com.cultureg.data.models.Question
 import com.cultureg.data.models.QuestionCategories
 
 /**
- * Dialogue pour ajouter ou modifier une question
+ * Dialogue pour ajouter ou modifier une question (format Question-Réponse)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuestionFormDialog(
     question: Question? = null, // null = mode ajout, non-null = mode édition
     onDismiss: () -> Unit,
-    onSave: (question: String, answers: List<String>, correctAnswerIndex: Int, category: String, difficulty: Difficulty) -> Unit
+    onSave: (question: String, correctAnswer: String, category: String, difficulty: Difficulty, timeLimit: Int?) -> Unit
 ) {
     // État du formulaire
     var questionText by remember { mutableStateOf(question?.question ?: "") }
-    var answer1 by remember { mutableStateOf(question?.answers?.getOrNull(0) ?: "") }
-    var answer2 by remember { mutableStateOf(question?.answers?.getOrNull(1) ?: "") }
-    var answer3 by remember { mutableStateOf(question?.answers?.getOrNull(2) ?: "") }
-    var answer4 by remember { mutableStateOf(question?.answers?.getOrNull(3) ?: "") }
-    var correctAnswerIndex by remember { mutableIntStateOf(question?.correctAnswerIndex ?: 0) }
+    var correctAnswer by remember { mutableStateOf(question?.correctAnswer ?: "") }
     var selectedCategory by remember { mutableStateOf(question?.category ?: "Général") }
     var selectedDifficulty by remember { mutableStateOf(question?.difficulty ?: Difficulty.MEDIUM) }
+    var timeLimitEnabled by remember { mutableStateOf(question?.timeLimit != null) }
+    var timeLimit by remember { mutableIntStateOf(question?.timeLimit ?: 30) }
     var showCategoryMenu by remember { mutableStateOf(false) }
     var showDifficultyMenu by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -111,6 +109,16 @@ fun QuestionFormDialog(
                         supportingText = { Text("${questionText.length}/200") }
                     )
                     
+                    // Réponse correcte
+                    OutlinedTextField(
+                        value = correctAnswer,
+                        onValueChange = { correctAnswer = it },
+                        label = { Text("Réponse correcte") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        supportingText = { Text("La réponse attendue (insensible à la casse et aux accents)") }
+                    )
+                    
                     // Catégorie
                     ExposedDropdownMenuBox(
                         expanded = showCategoryMenu,
@@ -179,47 +187,43 @@ fun QuestionFormDialog(
                     
                     Divider()
                     
-                    // Réponses
+                    // Chronomètre
                     Text(
-                        text = "Réponses",
+                        text = "Chronomètre",
                         style = MaterialTheme.typography.titleMedium
                     )
                     
-                    // Réponse 1
-                    AnswerField(
-                        value = answer1,
-                        onValueChange = { answer1 = it },
-                        label = "Réponse 1",
-                        isCorrect = correctAnswerIndex == 0,
-                        onSetCorrect = { correctAnswerIndex = 0 }
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Switch(
+                            checked = timeLimitEnabled,
+                            onCheckedChange = { timeLimitEnabled = it }
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = "Activer le chronomètre",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                     
-                    // Réponse 2
-                    AnswerField(
-                        value = answer2,
-                        onValueChange = { answer2 = it },
-                        label = "Réponse 2",
-                        isCorrect = correctAnswerIndex == 1,
-                        onSetCorrect = { correctAnswerIndex = 1 }
-                    )
-                    
-                    // Réponse 3
-                    AnswerField(
-                        value = answer3,
-                        onValueChange = { answer3 = it },
-                        label = "Réponse 3 (optionnelle)",
-                        isCorrect = correctAnswerIndex == 2,
-                        onSetCorrect = { correctAnswerIndex = 2 }
-                    )
-                    
-                    // Réponse 4
-                    AnswerField(
-                        value = answer4,
-                        onValueChange = { answer4 = it },
-                        label = "Réponse 4 (optionnelle)",
-                        isCorrect = correctAnswerIndex == 3,
-                        onSetCorrect = { correctAnswerIndex = 3 }
-                    )
+                    if (timeLimitEnabled) {
+                        OutlinedTextField(
+                            value = timeLimit.toString(),
+                            onValueChange = { 
+                                val value = it.toIntOrNull()
+                                if (value != null && value > 0) {
+                                    timeLimit = value
+                                }
+                            },
+                            label = { Text("Temps limite (secondes)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            enabled = timeLimitEnabled,
+                            supportingText = { Text("Temps maximum pour répondre à cette question") }
+                        )
+                    }
                     
                     // Info
                     Card(
@@ -239,7 +243,7 @@ fun QuestionFormDialog(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Cliquez sur ✓ pour marquer la réponse correcte",
+                                text = "Format Question-Réponse : une seule réponse textuelle attendue",
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -262,30 +266,23 @@ fun QuestionFormDialog(
                     Button(
                         onClick = {
                             // Validation
-                            val answers = listOfNotNull(
-                                answer1.takeIf { it.isNotBlank() },
-                                answer2.takeIf { it.isNotBlank() },
-                                answer3.takeIf { it.isNotBlank() },
-                                answer4.takeIf { it.isNotBlank() }
-                            )
-                            
                             when {
                                 questionText.isBlank() -> {
                                     errorMessage = "La question ne peut pas être vide"
                                 }
-                                answers.size < 2 -> {
-                                    errorMessage = "Il faut au moins 2 réponses"
+                                correctAnswer.isBlank() -> {
+                                    errorMessage = "La réponse correcte ne peut pas être vide"
                                 }
-                                correctAnswerIndex >= answers.size -> {
-                                    errorMessage = "Sélectionnez une réponse correcte parmi les réponses remplies"
+                                timeLimitEnabled && timeLimit <= 0 -> {
+                                    errorMessage = "Le temps limite doit être supérieur à 0"
                                 }
                                 else -> {
                                     onSave(
                                         questionText,
-                                        answers,
-                                        correctAnswerIndex,
+                                        correctAnswer,
                                         selectedCategory,
-                                        selectedDifficulty
+                                        selectedDifficulty,
+                                        if (timeLimitEnabled) timeLimit else null
                                     )
                                 }
                             }
@@ -300,45 +297,3 @@ fun QuestionFormDialog(
         }
     }
 }
-
-/**
- * Champ de réponse avec bouton de sélection
- */
-@Composable
-fun AnswerField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    isCorrect: Boolean,
-    onSetCorrect: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            label = { Text(label) },
-            modifier = Modifier.weight(1f),
-            singleLine = true
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        IconButton(
-            onClick = onSetCorrect,
-            enabled = value.isNotBlank()
-        ) {
-            Icon(
-                imageVector = if (isCorrect) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
-                contentDescription = "Réponse correcte",
-                tint = if (isCorrect) 
-                    MaterialTheme.colorScheme.primary 
-                else 
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-            )
-        }
-    }
-}
-
-
-

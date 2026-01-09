@@ -61,7 +61,7 @@ class QuestionsRepository {
         return _questions.value.filter { question ->
             question.question.contains(query, ignoreCase = true) ||
             question.category.contains(query, ignoreCase = true) ||
-            question.answers.any { it.contains(query, ignoreCase = true) }
+            question.correctAnswer.contains(query, ignoreCase = true)
         }
     }
     
@@ -74,27 +74,30 @@ class QuestionsRepository {
     }
     
     /**
-     * Questions par défaut pour tester
+     * Questions par défaut pour tester (format Question-Réponse)
      */
     private fun getDefaultQuestions(): List<Question> {
         return listOf(
             Question(
                 question = "Quelle est la capitale de la France ?",
-                answers = listOf("Paris", "Lyon", "Marseille", "Toulouse"),
-                correctAnswerIndex = 0,
-                category = "Géographie"
+                correctAnswer = "Paris",
+                category = "Géographie",
+                difficulty = com.cultureg.data.models.Difficulty.EASY,
+                timeLimit = 30
             ),
             Question(
                 question = "Qui a peint la Joconde ?",
-                answers = listOf("Picasso", "Van Gogh", "Léonard de Vinci", "Monet"),
-                correctAnswerIndex = 2,
-                category = "Arts"
+                correctAnswer = "Léonard de Vinci",
+                category = "Arts",
+                difficulty = com.cultureg.data.models.Difficulty.MEDIUM,
+                timeLimit = 45
             ),
             Question(
                 question = "En quelle année a eu lieu la Révolution française ?",
-                answers = listOf("1789", "1799", "1804", "1815"),
-                correctAnswerIndex = 0,
-                category = "Histoire"
+                correctAnswer = "1789",
+                category = "Histoire",
+                difficulty = com.cultureg.data.models.Difficulty.MEDIUM,
+                timeLimit = 30
             )
         )
     }

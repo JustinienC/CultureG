@@ -96,22 +96,22 @@ class QuestionsViewModel : ViewModel() {
     }
     
     /**
-     * Ajoute une nouvelle question
+     * Ajoute une nouvelle question (format Question-Réponse)
      */
     fun addQuestion(
         question: String,
-        answers: List<String>,
-        correctAnswerIndex: Int,
+        correctAnswer: String,
         category: String,
-        difficulty: Difficulty
+        difficulty: Difficulty,
+        timeLimit: Int? = null
     ) {
-        if (validateQuestion(question, answers, correctAnswerIndex)) {
+        if (validateQuestion(question, correctAnswer)) {
             val newQuestion = Question(
                 question = question,
-                answers = answers,
-                correctAnswerIndex = correctAnswerIndex,
+                correctAnswer = correctAnswer,
                 category = category,
-                difficulty = difficulty
+                difficulty = difficulty,
+                timeLimit = timeLimit
             )
             // Ajouter localement
             repository.addQuestion(newQuestion)
@@ -142,24 +142,24 @@ class QuestionsViewModel : ViewModel() {
     }
     
     /**
-     * Met à jour une question
+     * Met à jour une question (format Question-Réponse)
      */
     fun updateQuestion(
         id: String,
         question: String,
-        answers: List<String>,
-        correctAnswerIndex: Int,
+        correctAnswer: String,
         category: String,
-        difficulty: Difficulty
+        difficulty: Difficulty,
+        timeLimit: Int? = null
     ) {
-        if (validateQuestion(question, answers, correctAnswerIndex)) {
+        if (validateQuestion(question, correctAnswer)) {
             val updatedQuestion = Question(
                 id = id,
                 question = question,
-                answers = answers,
-                correctAnswerIndex = correctAnswerIndex,
+                correctAnswer = correctAnswer,
                 category = category,
-                difficulty = difficulty
+                difficulty = difficulty,
+                timeLimit = timeLimit
             )
             // Mettre à jour localement
             repository.updateQuestion(updatedQuestion)
@@ -212,12 +212,11 @@ class QuestionsViewModel : ViewModel() {
     }
     
     /**
-     * Valide une question
+     * Valide une question (format Question-Réponse)
      */
     private fun validateQuestion(
         question: String,
-        answers: List<String>,
-        correctAnswerIndex: Int
+        correctAnswer: String
     ): Boolean {
         if (question.isBlank()) {
             _uiState.value = _uiState.value.copy(
@@ -226,23 +225,9 @@ class QuestionsViewModel : ViewModel() {
             return false
         }
         
-        if (answers.size < 2) {
+        if (correctAnswer.isBlank()) {
             _uiState.value = _uiState.value.copy(
-                showMessage = "Il faut au moins 2 réponses"
-            )
-            return false
-        }
-        
-        if (answers.any { it.isBlank() }) {
-            _uiState.value = _uiState.value.copy(
-                showMessage = "Les réponses ne peuvent pas être vides"
-            )
-            return false
-        }
-        
-        if (correctAnswerIndex !in answers.indices) {
-            _uiState.value = _uiState.value.copy(
-                showMessage = "L'index de la réponse correcte est invalide"
+                showMessage = "La réponse correcte ne peut pas être vide"
             )
             return false
         }

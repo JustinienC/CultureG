@@ -110,8 +110,8 @@ fun QuestionsScreen(
     if (showAddDialog) {
         QuestionFormDialog(
             onDismiss = { showAddDialog = false },
-            onSave = { question, answers, correctIndex, category, difficulty ->
-                viewModel.addQuestion(question, answers, correctIndex, category, difficulty)
+            onSave = { question, correctAnswer, category, difficulty, timeLimit ->
+                viewModel.addQuestion(question, correctAnswer, category, difficulty, timeLimit)
                 showAddDialog = false
             }
         )
@@ -122,14 +122,14 @@ fun QuestionsScreen(
         QuestionFormDialog(
             question = question,
             onDismiss = { questionToEdit = null },
-            onSave = { questionText, answers, correctIndex, category, difficulty ->
+            onSave = { questionText, correctAnswer, category, difficulty, timeLimit ->
                 viewModel.updateQuestion(
                     question.id,
                     questionText,
-                    answers,
-                    correctIndex,
+                    correctAnswer,
                     category,
-                    difficulty
+                    difficulty,
+                    timeLimit
                 )
                 questionToEdit = null
             }
@@ -352,32 +352,42 @@ fun QuestionCard(
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            // Réponses
-            question.answers.forEachIndexed { index, answer ->
+            // Réponse correcte
+            Row(
+                modifier = Modifier.padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.CheckCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = question.correctAnswer,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            
+            // Temps limite (si défini)
+            question.timeLimit?.let { timeLimit ->
+                Spacer(modifier = Modifier.height(8.dp))
                 Row(
-                    modifier = Modifier.padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = if (index == question.correctAnswerIndex) 
-                            Icons.Filled.CheckCircle 
-                        else 
-                            Icons.Filled.RadioButtonUnchecked,
+                        imageVector = Icons.Filled.Timer,
                         contentDescription = null,
-                        tint = if (index == question.correctAnswerIndex) 
-                            MaterialTheme.colorScheme.primary 
-                        else 
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.secondary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = answer,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (index == question.correctAnswerIndex) 
-                            FontWeight.Bold 
-                        else 
-                            FontWeight.Normal
+                        text = "Temps limite: ${timeLimit}s",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary
                     )
                 }
             }
