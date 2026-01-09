@@ -200,6 +200,22 @@ async def test_game_flow():
         async with websockets.connect(uri) as websocket:
             await websocket.recv()  # Ignorer CONNECTED
             
+            # D'abord, ajouter 2 questions pour le test
+            print("   → Ajout de questions pour le test...")
+            for i in range(2):
+                await websocket.send(json.dumps({
+                    "type": "ADD_QUESTION",
+                    "data": {
+                        "id": f"game-test-question-{i}",
+                        "question": f"Question test {i+1} ?",
+                        "answers": ["Réponse A", "Réponse B", "Réponse C", "Réponse D"],
+                        "correctAnswerIndex": 0,
+                        "category": "Test",
+                        "difficulty": "EASY"
+                    }
+                }))
+                await websocket.recv()  # Ignorer QUESTION_ADDED
+            
             # Démarrer le jeu
             print("   → Démarrage du jeu...")
             await websocket.send(json.dumps({
@@ -207,9 +223,13 @@ async def test_game_flow():
                 "data": {"numberOfQuestions": 2}
             }))
             
-            # Recevoir première question
+            # Recevoir première question ou erreur
             response = await websocket.recv()
             data = json.loads(response)
+            
+            if data.get('type') == 'ERROR':
+                print(f"❌ Erreur du serveur: {data.get('message')}")
+                return False
             
             if data.get('type') == 'CURRENT_QUESTION':
                 question = data.get('data', {}).get('question', {})
@@ -249,8 +269,12 @@ async def test_game_flow():
                 else:
                     print(f"❌ Réponse inattendue: {data}")
                     return False
+            elif data.get('type') == 'ERROR':
+                print(f"❌ Erreur: {data.get('message')}")
+                return False
             else:
-                print(f"❌ Pas de question reçue: {data}")
+                print(f"❌ Pas de question reçue, type reçu: {data.get('type')}")
+                print(f"   Données: {data}")
                 return False
     except Exception as e:
         print(f"❌ Erreur: {e}")
