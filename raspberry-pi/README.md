@@ -14,13 +14,32 @@ Serveur WebSocket pour le jeu de culture générale sur Raspberry Pi.
 
 ## 🚀 Installation
 
-### 1. Installer les dépendances
+### 1. Télécharger le modèle VOSK
+
+Le système utilise VOSK pour la reconnaissance vocale offline. Télécharge le modèle français :
+
+```bash
+cd raspberry-pi
+wget https://alphacephei.com/vosk/models/vosk-model-small-fr-0.22.zip
+unzip vosk-model-small-fr-0.22.zip
+```
+
+Le dossier `vosk-model-small-fr-0.22` doit être présent dans le répertoire `raspberry-pi/`.
+
+### 2. Installer les dépendances
 
 ```bash
 pip3 install -r requirements.txt
 ```
 
-### 2. Configuration GPIO (optionnel)
+**Note:** Si tu rencontres des erreurs avec `sounddevice` ou `scipy`, installe d'abord les dépendances système :
+
+```bash
+sudo apt-get update
+sudo apt-get install libportaudio2 libatlas-base-dev
+```
+
+### 3. Configuration GPIO (optionnel)
 
 Si tu n'as pas les composants GPIO connectés, le serveur fonctionnera en mode simulation.
 
@@ -28,15 +47,61 @@ Si tu n'as pas les composants GPIO connectés, le serveur fonctionnera en mode s
 - LED → GPIO 18 (bonne réponse)
 - Vibreur → GPIO 23 (mauvaise réponse)
 - Buzzer → GPIO 24 (son bonne réponse)
-- Bouton → GPIO 25 (démarrage jeu)
+- Bouton → GPIO 16 (enregistrement vocal - démarrage/arrêt)
 
-### 3. Lancer le serveur
+**Note:** Le bouton GPIO 25 n'est plus utilisé en mode boucle infinie.
+
+### 4. Préparer la base de données Flask
+
+Le serveur utilise le webserver Flask pour récupérer les questions. Ajoute quelques questions dans la base de données Flask :
 
 ```bash
+cd serveur
+python3 init_db.py
+```
+
+Ou utilise l'API Flask pour ajouter des questions :
+
+```bash
+curl -X POST http://localhost:5000/questions \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Quelle est la capitale de la France ?", "correct_answer": "Paris", "category": "Géographie"}'
+```
+
+### 5. Lancer le système complet
+
+**Option A : Script automatique (recommandé)**
+
+Depuis la racine du projet :
+
+```bash
+bash start_game_system.sh
+```
+
+Ce script démarre automatiquement :
+- Le serveur Flask (port 5000)
+- Le serveur WebSocket avec boucle de jeu infinie (port 8765)
+
+**Option B : Lancement manuel**
+
+Terminal 1 - Serveur Flask :
+```bash
+cd serveur
+python3 webServer.py
+```
+
+Terminal 2 - Serveur WebSocket :
+```bash
+cd raspberry-pi
 python3 server.py
 ```
 
-Le serveur écoute sur `ws://0.0.0.0:8765`
+Le serveur WebSocket :
+- Écoute sur `ws://0.0.0.0:8765` pour les connexions Android
+- Lance automatiquement la boucle de jeu infinie
+- Pose des questions via TTS
+- Attend les réponses vocales (VOSK + GPIO 16)
+- Envoie des statistiques toutes les 10 questions
 
 ## 📡 Communication
 

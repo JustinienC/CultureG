@@ -43,16 +43,38 @@ except ImportError:
     AUDIO_AVAILABLE = False
     logger.warning("pygame non disponible - Audio désactivé")
 
+# VOSK (Reconnaissance vocale offline)
+try:
+    import sounddevice as sd
+    import numpy as np
+    from scipy.signal import resample
+    from vosk import Model, KaldiRecognizer
+    import queue
+    VOSK_AVAILABLE = True
+except ImportError:
+    VOSK_AVAILABLE = False
+    logger.warning("VOSK non disponible - Reconnaissance vocale désactivée")
+
+# HTTP Client pour Flask
+try:
+    import aiohttp
+    AIOHTTP_AVAILABLE = True
+except ImportError:
+    AIOHTTP_AVAILABLE = False
+    logger.warning("aiohttp non disponible - Communication avec Flask désactivée")
+
 # Configuration GPIO
 LED_PIN = 18          # GPIO 18 pour LED (bonne réponse)
 VIBRATOR_PIN = 23     # GPIO 23 pour vibreur (mauvaise réponse)
 BUZZER_PIN = 24       # GPIO 24 pour buzzer/haut-parleur
-BUTTON_PIN = 25       # GPIO 25 pour bouton démarrage
-RECORD_BUTTON_PIN = 16  # GPIO 16 pour bouton d'enregistrement vocal
+RECORD_BUTTON_PIN = 16  # GPIO 16 pour bouton d'enregistrement vocal (démarrage/arrêt)
 
 # Configuration WebSocket
 WS_HOST = "0.0.0.0"   # Écouter sur toutes les interfaces
 WS_PORT = 8765        # Port WebSocket
+
+# Configuration Flask Server
+FLASK_SERVER_URL = "http://localhost:5000"
 
 # Base de données
 DB_FILE = "cultureg.db"
@@ -212,103 +234,122 @@ class AudioController:
 audio_controller = AudioController()
 
 
-class SpeechRecognitionController:
-    """Contrôleur pour la reconnaissance vocale"""
+class VoskRecognitionController:
+    """Contrôleur pour la reconnaissance vocale avec VOSK (offline)"""
     
-    def __init__(self):
+    def __init__(self, model_path="vosk-model-small-fr-0.22"):
+        self.model = None
         self.recognizer = None
         self.initialized = False
+        self.audio_queue = queue.Queue()
+        self.MIC_RATE = 16000
+        self.VOSK_RATE = 16000
         
-        if not SPEECH_RECOGNITION_AVAILABLE:
-            logger.warning("Speech Recognition non disponible - Mode simulation activé")
+        if not VOSK_AVAILABLE:
+            logger.warning("VOSK non disponible - Mode simulation activé")
             return
         
         try:
-            self.recognizer = sr.Recognizer()
+            # Charger le modèle VOSK
+            self.model = Model(model_path)
+            self.recognizer = KaldiRecognizer(self.model, self.VOSK_RATE)
+            
+            # Détecter le micro
+            device_info = sd.query_devices(0, 'input')
+            self.MIC_RATE = int(device_info['default_samplerate'])
             self.initialized = True
-            logger.info("Reconnaissance vocale initialisée avec succès")
+            logger.info(f"VOSK initialisé - Micro: {device_info['name']}, rate: {self.MIC_RATE}")
         except Exception as e:
-            logger.error(f"Erreur initialisation reconnaissance vocale: {e}")
+            logger.error(f"Erreur initialisation VOSK: {e}")
             logger.warning("Mode simulation activé (pas de reconnaissance vocale réelle)")
     
-    async def wait_for_answer(self, timeout: int = 30, phrase_time_limit: int = 10) -> Optional[str]:
-        """Attend la réponse de l'utilisateur via reconnaissance vocale
+    def audio_callback(self, indata, frames, time_info, status):
+        """Callback pour capturer l'audio"""
+        if status:
+            logger.warning(f"Audio status: {status}")
+        self.audio_queue.put(indata.copy())
+    
+    async def wait_for_answer(self, timeout: int = 30) -> Optional[str]:
+        """Attend la réponse de l'utilisateur via reconnaissance vocale VOSK
         
         Args:
-            timeout: Temps max d'attente avant démarrage (secondes)
-            phrase_time_limit: Temps max d'enregistrement (secondes)
+            timeout: Temps max d'attente (secondes)
         
         Returns:
             str: Texte reconnu ou None si échec/timeout
         """
-        if not self.initialized or not self.recognizer:
-            logger.warning("Reconnaissance vocale non disponible - Simulation")
-            # Simuler une réponse pour les tests
+        if not self.initialized:
+            logger.warning("VOSK non disponible - Simulation")
             await asyncio.sleep(2)
             return "réponse simulée"
         
         try:
-            # Attendre le premier appui sur le bouton (démarrage enregistrement)
-            logger.info("En attente du démarrage de l'enregistrement (bouton GPIO 16)...")
+            # Attendre que GPIO 16 soit pressé
+            logger.info("En attente du démarrage de l'enregistrement (GPIO 16)...")
             start_time = time.time()
-            
-            # Attendre que le bouton soit pressé (via GPIO callback)
             while not gpio.recording_started and (time.time() - start_time) < timeout:
                 await asyncio.sleep(0.1)
             
             if not gpio.recording_started:
-                logger.warning("Timeout: Aucun démarrage d'enregistrement détecté")
+                logger.warning("Timeout: Pas d'enregistrement")
                 return None
             
-            logger.info("Enregistrement démarré")
+            # Démarrer l'enregistrement avec sounddevice
+            logger.info("Enregistrement démarré (VOSK)...")
+            self.audio_queue = queue.Queue()
             
-            # Enregistrer depuis le micro
-            with sr.Microphone() as source:
-                # Calibration du bruit ambiant
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
-                
-                # Attendre l'arrêt de l'enregistrement (deuxième appui bouton)
-                logger.info("Enregistrement en cours... (appuyez sur le bouton pour arrêter)")
-                audio_data = None
-                
-                # Enregistrer jusqu'à ce que le bouton soit pressé à nouveau ou timeout
-                while gpio.is_recording and (time.time() - start_time) < (timeout + phrase_time_limit):
+            # Créer un nouveau recognizer pour chaque reconnaissance
+            self.recognizer = KaldiRecognizer(self.model, self.VOSK_RATE)
+            
+            with sd.InputStream(
+                device=0,
+                channels=1,
+                samplerate=self.MIC_RATE,
+                dtype='float32',
+                callback=self.audio_callback
+            ):
+                while gpio.is_recording and (time.time() - start_time) < timeout:
                     try:
-                        # Écouter avec un timeout court pour vérifier l'état du bouton
-                        audio_data = self.recognizer.listen(source, timeout=0.5, phrase_time_limit=phrase_time_limit)
-                        if not gpio.is_recording:
-                            break
-                    except sr.WaitTimeoutError:
-                        # Continuer à écouter
+                        audio_chunk = self.audio_queue.get(timeout=0.1)
+                        
+                        # Resample pour VOSK
+                        audio_mono = audio_chunk[:, 0] if len(audio_chunk.shape) > 1 else audio_chunk
+                        num_samples = int(len(audio_mono) * self.VOSK_RATE / self.MIC_RATE)
+                        audio_resampled = resample(audio_mono, num_samples)
+                        audio_bytes = (audio_resampled * 32767).astype(np.int16).tobytes()
+                        
+                        if self.recognizer.AcceptWaveform(audio_bytes):
+                            result = json.loads(self.recognizer.Result())
+                            text = result.get("text", "")
+                            if text:
+                                logger.info(f"VOSK: Réponse reconnue: {text}")
+                                gpio.recording_started = False
+                                gpio.is_recording = False
+                                return text
+                    except queue.Empty:
                         continue
-                
-                if audio_data is None:
-                    logger.warning("Aucun audio enregistré")
-                    return None
-                
-                # Reconnaissance vocale
-                logger.info("Traitement de la reconnaissance vocale...")
-                try:
-                    text = self.recognizer.recognize_google(audio_data, language='fr-FR')
-                    logger.info(f"Réponse reconnue: {text}")
-                    return text
-                except sr.UnknownValueError:
-                    logger.warning("Impossible de comprendre l'audio")
-                    return None
-                except sr.RequestError as e:
-                    logger.error(f"Erreur API reconnaissance vocale: {e}")
-                    return None
+                    except Exception as e:
+                        logger.error(f"Erreur traitement audio VOSK: {e}")
+            
+            # Résultat final
+            final_result = json.loads(self.recognizer.FinalResult())
+            text = final_result.get("text", "")
+            logger.info(f"VOSK: Résultat final: {text}")
+            
+            gpio.recording_started = False
+            gpio.is_recording = False
+            return text if text else None
                     
         except Exception as e:
-            logger.error(f"Erreur lors de l'enregistrement: {e}")
+            logger.error(f"Erreur lors de l'enregistrement VOSK: {e}")
             return None
         finally:
             # Réinitialiser les flags
             gpio.recording_started = False
             gpio.is_recording = False
 
-# Instance globale Speech Recognition
-speech_controller = SpeechRecognitionController()
+# Instance globale VOSK Recognition
+speech_controller = VoskRecognitionController()
 
 
 class GPIOController:
@@ -332,14 +373,8 @@ class GPIOController:
             GPIO.setup(VIBRATOR_PIN, GPIO.OUT)
             GPIO.setup(BUZZER_PIN, GPIO.OUT)
             
-            # Configuration des boutons en entrée avec pull-up
-            GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            # Configuration du bouton d'enregistrement en entrée avec pull-up
             GPIO.setup(RECORD_BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            
-            # Callback pour le bouton de démarrage
-            GPIO.add_event_detect(BUTTON_PIN, GPIO.FALLING, 
-                                 callback=self._button_callback, 
-                                 bouncetime=300)
             
             # Callback pour le bouton d'enregistrement
             GPIO.add_event_detect(RECORD_BUTTON_PIN, GPIO.FALLING, 
@@ -382,22 +417,8 @@ class GPIOController:
     
     async def _process_recorded_audio(self):
         """Traite l'audio enregistré"""
-        # Cette fonction sera appelée par le SpeechRecognitionController
+        # Cette fonction sera appelée par le VoskRecognitionController
         pass
-    
-    def _button_callback(self, channel):
-        """Callback appelé quand le bouton est pressé"""
-        logger.info("Bouton démarrage pressé")
-        # Envoyer événement à tous les clients connectés
-        asyncio.create_task(self._notify_button_pressed())
-    
-    async def _notify_button_pressed(self):
-        """Notifier les clients que le bouton a été pressé"""
-        message = {
-            "type": "BUTTON_PRESSED",
-            "timestamp": datetime.now().isoformat()
-        }
-        await broadcast_message(message)
     
     def good_answer(self):
         """Activer LED et son pour bonne réponse"""
@@ -699,6 +720,61 @@ class Database:
 gpio = GPIOController()
 db = Database(DB_FILE)
 
+
+# ============================================================================
+# FONCTIONS HTTP POUR COMMUNIQUER AVEC FLASK
+# ============================================================================
+
+async def fetch_random_question_from_flask():
+    """Récupère une question aléatoire depuis le serveur Flask"""
+    if not AIOHTTP_AVAILABLE:
+        logger.error("aiohttp non disponible - Impossible de communiquer avec Flask")
+        return None
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{FLASK_SERVER_URL}/questions/random") as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    logger.info(f"Question récupérée depuis Flask: {data['question']}")
+                    return data
+                else:
+                    logger.error(f"Erreur Flask ({resp.status}): {await resp.text()}")
+                    return None
+    except aiohttp.ClientConnectorError as e:
+        logger.error(f"Erreur connexion Flask (serveur non démarré?): {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Erreur récupération question Flask: {e}")
+        return None
+
+
+async def validate_answer_with_flask(question_id: int, user_answer: str):
+    """Valide la réponse via le serveur Flask"""
+    if not AIOHTTP_AVAILABLE:
+        logger.error("aiohttp non disponible - Impossible de valider avec Flask")
+        return False
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            payload = {"question_id": question_id, "answer": user_answer}
+            async with session.post(f"{FLASK_SERVER_URL}/answers", json=payload) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    is_correct = data.get('correct', False)
+                    logger.info(f"Validation Flask: {'✅ Correct' if is_correct else '❌ Incorrect'}")
+                    return is_correct
+                else:
+                    logger.error(f"Erreur validation Flask ({resp.status}): {await resp.text()}")
+                    return False
+    except Exception as e:
+        logger.error(f"Erreur validation réponse Flask: {e}")
+        return False
+
+
+# ============================================================================
+# FONCTIONS WEBSOCKET
+# ============================================================================
 
 async def broadcast_message(message: Dict):
     """Envoyer un message à tous les clients connectés"""
@@ -1143,6 +1219,127 @@ async def end_game(websocket: websockets.WebSocketServerProtocol):
     logger.info(f"Jeu terminé - Score: {final_score}/{total_questions}")
 
 
+# ============================================================================
+# BOUCLE DE JEU INFINIE (MODE FLASK)
+# ============================================================================
+
+async def infinite_game_loop():
+    """Boucle de jeu infinie - Pose des questions continuellement via Flask"""
+    global game_stats
+    
+    logger.info("🎮 Démarrage du mode jeu en boucle infinie")
+    
+    # Initialiser les stats
+    game_stats = {
+        "total_questions": 0,
+        "correct_answers": 0,
+        "wrong_answers": 0,
+        "current_score": 0,
+        "session_start": time.time()
+    }
+    
+    question_count_in_session = 0
+    QUESTIONS_PER_STATS = 10  # Envoyer les stats toutes les 10 questions
+    
+    await broadcast_message({
+        "type": "GAME_STARTED",
+        "data": {"message": "Mode jeu en boucle infinie démarré"}
+    })
+    
+    # Boucle infinie
+    while True:
+        try:
+            # Récupérer question depuis Flask
+            question_data = await fetch_random_question_from_flask()
+            
+            if not question_data:
+                logger.error("Impossible de récupérer une question, retry dans 5s...")
+                await asyncio.sleep(5)
+                continue
+            
+            question_count_in_session += 1
+            game_stats["total_questions"] += 1
+            
+            logger.info(f"📝 Question #{game_stats['total_questions']}: {question_data['question']}")
+            
+            # Lire la question via TTS
+            tts_controller.speak(question_data['question'])
+            
+            # Attendre la réponse vocale (VOSK + GPIO 16)
+            logger.info("🎤 En attente de la réponse (appuyez sur GPIO 16)...")
+            user_answer = await speech_controller.wait_for_answer(timeout=60)
+            
+            if user_answer:
+                logger.info(f"💬 Réponse utilisateur: {user_answer}")
+                
+                # Valider avec Flask
+                is_correct = await validate_answer_with_flask(
+                    question_data['id'], 
+                    user_answer
+                )
+                
+                if is_correct:
+                    game_stats["correct_answers"] += 1
+                    game_stats["current_score"] += 10
+                    logger.info("✅ Bonne réponse!")
+                    gpio.good_answer()
+                    await broadcast_message({
+                        "type": "ANSWER_RESULT",
+                        "data": {
+                            "correct": True,
+                            "user_answer": user_answer,
+                            "score": game_stats["current_score"],
+                            "total_questions": game_stats["total_questions"]
+                        }
+                    })
+                else:
+                    game_stats["wrong_answers"] += 1
+                    logger.info(f"❌ Mauvaise réponse. Bonne réponse: {question_data.get('correct_answer', '?')}")
+                    gpio.wrong_answer()
+                    await broadcast_message({
+                        "type": "ANSWER_RESULT",
+                        "data": {
+                            "correct": False,
+                            "user_answer": user_answer,
+                            "correct_answer": question_data.get('correct_answer', '?'),
+                            "score": game_stats["current_score"],
+                            "total_questions": game_stats["total_questions"]
+                        }
+                    })
+            else:
+                # Timeout ou pas de réponse
+                game_stats["wrong_answers"] += 1
+                logger.warning("⏱️ Timeout - Pas de réponse")
+                gpio.wrong_answer()
+            
+            # Envoyer les stats périodiquement (toutes les 10 questions)
+            if question_count_in_session >= QUESTIONS_PER_STATS:
+                logger.info(f"📊 Envoi des statistiques (session de {QUESTIONS_PER_STATS} questions)")
+                await broadcast_message({
+                    "type": "GAME_STATS",
+                    "data": {
+                        "total_questions": game_stats["total_questions"],
+                        "correct_answers": game_stats["correct_answers"],
+                        "wrong_answers": game_stats["wrong_answers"],
+                        "current_score": game_stats["current_score"],
+                        "session_duration": time.time() - game_stats["session_start"]
+                    }
+                })
+                # Réinitialiser le compteur de session
+                question_count_in_session = 0
+            
+            # Petite pause entre les questions
+            await asyncio.sleep(2)
+            
+        except Exception as e:
+            logger.error(f"Erreur dans la boucle de jeu: {e}")
+            await asyncio.sleep(5)  # Pause avant de réessayer
+
+
+# ============================================================================
+# GESTION DES CONNEXIONS WEBSOCKET
+# ============================================================================
+
 async def handle_client(websocket: websockets.WebSocketServerProtocol, path: str):
     """Gérer une connexion client"""
     client_address = websocket.remote_address
@@ -1177,14 +1374,39 @@ async def main():
     logger.info("=" * 50)
     logger.info("Serveur CultureG - Raspberry Pi")
     logger.info("=" * 50)
+    logger.info(f"Mode: {'RÉEL' if GPIO_AVAILABLE else 'SIMULATION'} (GPIO {'disponible' if GPIO_AVAILABLE else 'non disponible'})")
     logger.info(f"Écoute sur ws://{WS_HOST}:{WS_PORT}")
     logger.info(f"Base de données: {DB_FILE}")
+    logger.info(f"Flask server: {FLASK_SERVER_URL}")
+    logger.info("🎮 Mode jeu en boucle infinie activé")
     logger.info("Appuyez sur Ctrl+C pour arrêter")
     logger.info("=" * 50)
     
     try:
         async with websockets.serve(handle_client, WS_HOST, WS_PORT):
-            await asyncio.Future()  # Run forever
+            # Lancer la boucle de jeu infinie en tâche d'arrière-plan
+            game_task = asyncio.create_task(infinite_game_loop())
+            
+            try:
+                await asyncio.Future()  # Run forever
+            except KeyboardInterrupt:
+                logger.info("\n🛑 Arrêt du serveur...")
+                game_task.cancel()
+                
+                # Envoyer les stats finales
+                try:
+                    await broadcast_message({
+                        "type": "GAME_STATS_FINAL",
+                        "data": {
+                            "total_questions": game_stats["total_questions"],
+                            "correct_answers": game_stats["correct_answers"],
+                            "wrong_answers": game_stats["wrong_answers"],
+                            "current_score": game_stats["current_score"],
+                            "total_duration": time.time() - game_stats.get("session_start", time.time())
+                        }
+                    })
+                except:
+                    pass
     except KeyboardInterrupt:
         logger.info("\nArrêt du serveur...")
     finally:
