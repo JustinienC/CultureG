@@ -25,12 +25,12 @@
 - Clique sur le bouton ➕ (FAB en bas à droite)
 - Ajoute une question de test :
   - Question : "Quelle est la capitale de la France ?"
-  - Réponses : "Paris", "Lyon", "Marseille", "Toulouse"
-  - Bonne réponse : "Paris" (index 0)
+  - Réponse correcte : "Paris"
   - Catégorie : "Géographie"
   - Difficulté : "Facile"
+  - Temps limite (optionnel) : "30" secondes
 - Clique "Ajouter"
-- ✅ La question devrait apparaître dans la liste
+- ✅ La question devrait apparaître dans la liste avec la réponse correcte affichée
 
 ✅ **Écran Connexion** :
 - Clique sur l'onglet "Connexion"
@@ -47,7 +47,13 @@
 
 2. **Installe les dépendances** (si pas déjà fait) :
 ```powershell
-pip install websockets aiosqlite
+cd raspberry-pi
+pip install -r requirements.txt
+```
+
+**Ou manuellement** :
+```powershell
+pip install websockets aiosqlite pyttsx3 pygame SpeechRecognition pyaudio
 ```
 
 3. **Lance le serveur** :
@@ -293,6 +299,114 @@ Les logs s'affichent directement dans le terminal où tu as lancé `server.py` :
 
 ---
 
+---
+
+## 🎮 Tester le Jeu Complet (Nouvelles Fonctionnalités)
+
+### Étape 5 : Tester le Jeu avec Matériel Raspberry Pi
+
+#### 5.1 Prérequis Matériel
+
+- ✅ Raspberry Pi avec GPIO configuré
+- ✅ Casque branché (pour TTS et son de succès)
+- ✅ Micro branché (USB ou jack)
+- ✅ Bouton GPIO 25 (démarrage jeu)
+- ✅ Bouton GPIO 16 (enregistrement vocal)
+- ✅ Vibreur GPIO 23 (mauvaise réponse)
+- ✅ LED GPIO 18 (bonne réponse)
+
+#### 5.2 Préparer le Serveur
+
+1. **Sur la Raspberry Pi**, lance le serveur :
+```bash
+cd raspberry-pi
+python3 server.py
+```
+
+**Résultat attendu** :
+```
+Mode: RÉEL (GPIO disponible)
+TTS initialisé avec succès
+Reconnaissance vocale initialisée avec succès
+Écoute sur ws://0.0.0.0:8765
+```
+
+#### 5.3 Ajouter des Questions depuis l'App
+
+1. **Connecte-toi** depuis l'app Android (écran Connexion)
+2. **Ajoute au moins 3 questions** avec des réponses simples :
+   - "Quelle est la capitale de la France ?" → "Paris"
+   - "Combien font 2 + 2 ?" → "4"
+   - "Qui a peint la Joconde ?" → "Léonard de Vinci"
+
+#### 5.4 Tester le Démarrage du Jeu
+
+1. **Appuie sur le bouton GPIO 25** (sur la Raspberry Pi)
+2. **Résultat attendu** :
+   - ✅ Le serveur affiche "Démarrage du jeu..."
+   - ✅ La première question est lue via TTS dans le casque
+   - ✅ Le chronomètre démarre (si temps limite défini)
+
+#### 5.5 Tester la Réponse Vocale
+
+1. **Appuie sur le bouton GPIO 16** pour démarrer l'enregistrement
+2. **Dis ta réponse** dans le micro (ex: "Paris")
+3. **Appuie à nouveau sur GPIO 16** pour arrêter l'enregistrement
+4. **Résultat attendu** :
+   - ✅ Si bonne réponse :
+     - Son de succès joué dans le casque
+     - LED GPIO 18 s'allume
+     - Score augmenté
+   - ✅ Si mauvaise réponse :
+     - Vibreur GPIO 23 activé
+     - Score non augmenté
+
+#### 5.6 Tester le Chronomètre
+
+1. **Ajoute une question avec temps limite** (ex: 10 secondes)
+2. **Démarre le jeu** (GPIO 25)
+3. **N'attends pas** et laisse le temps s'écouler
+4. **Résultat attendu** :
+   - ✅ Après 10 secondes, timeout automatique
+   - ✅ Réponse marquée comme incorrecte
+   - ✅ Vibreur activé
+
+#### 5.7 Tester les Statistiques en Fin de Partie
+
+1. **Termine une partie** (réponds à toutes les questions)
+2. **Résultat attendu** :
+   - ✅ Message `GAME_ENDED` envoyé automatiquement à l'app
+   - ✅ Statistiques affichées dans l'app :
+     - Nombre de bonnes réponses
+     - Nombre de mauvaises réponses
+     - Score total
+     - Questions posées
+
+---
+
+## 🧪 Tests en Mode Simulation (Sans Matériel)
+
+Si tu n'as pas le matériel, le serveur fonctionne en **mode simulation** :
+
+### Test TTS (Simulation)
+- ✅ Les questions sont "lues" (log dans la console)
+- ✅ Pas de son réel, mais le code s'exécute
+
+### Test Reconnaissance Vocale (Simulation)
+- ✅ Retourne une réponse simulée
+- ✅ Permet de tester le flux du jeu
+
+### Test GPIO (Simulation)
+- ✅ Les actions GPIO sont loggées
+- ✅ Pas d'action réelle sur les composants
+
+**Pour tester en simulation** :
+1. Lance `python3 server.py` (sans matériel GPIO)
+2. Le serveur détecte automatiquement le mode simulation
+3. Tous les tests fonctionnent mais sans effets réels
+
+---
+
 ## 🚀 Prochaines Étapes Après les Tests
 
 Une fois que tout fonctionne :
@@ -301,6 +415,36 @@ Une fois que tout fonctionne :
 2. ✅ **Tester les scores** : Afficher les scores depuis le Raspberry Pi
 3. ✅ **Tester les paramètres** : Modifier les paramètres du jeu
 4. ✅ **Tester avec le matériel** : Si tu as un Raspberry Pi avec GPIO
+
+---
+
+## 📋 Checklist de Test Complète (Nouveau Format)
+
+### ✅ Tests Application Android
+- [ ] Ajouter une question avec réponse unique
+- [ ] Modifier une question existante
+- [ ] Supprimer une question
+- [ ] Définir un temps limite pour une question
+- [ ] Se connecter à la Raspberry Pi
+- [ ] Recevoir les statistiques en fin de partie
+
+### ✅ Tests Raspberry Pi (Sans Matériel)
+- [ ] Serveur démarre en mode simulation
+- [ ] TTS fonctionne (simulation)
+- [ ] Reconnaissance vocale fonctionne (simulation)
+- [ ] Chronomètre fonctionne
+- [ ] Statistiques envoyées en fin de partie
+
+### ✅ Tests Raspberry Pi (Avec Matériel)
+- [ ] GPIO 25 : Démarrage du jeu
+- [ ] TTS : Questions lues dans le casque
+- [ ] GPIO 16 : Enregistrement vocal (démarrage/arrêt)
+- [ ] Micro : Reconnaissance de la réponse
+- [ ] Son de succès : Joué pour bonne réponse
+- [ ] LED GPIO 18 : S'allume pour bonne réponse
+- [ ] Vibreur GPIO 23 : Active pour mauvaise réponse
+- [ ] Chronomètre : Timeout fonctionne
+- [ ] Statistiques : Envoyées automatiquement à l'app
 
 ---
 

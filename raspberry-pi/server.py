@@ -612,31 +612,6 @@ class Database:
             c = conn.cursor()
             
             c.execute('''
-                INSERT INTO scores (player_name, score, total_questions, correct_answers)
-                VALUES (?, ?, ?, ?)
-            ''', (
-                player_name,
-                score,
-                total_questions,
-                correct_answers
-            ))
-            
-            conn.commit()
-            conn.close()
-            logger.info(f"Score sauvegardé: {score}/{total_questions}")
-            return True
-        except Exception as e:
-            logger.error(f"Erreur sauvegarde score: {e}")
-            return False
-    
-    def save_score(self, player_name: str, score: int, total_questions: int, 
-                   correct_answers: int, wrong_answers: int) -> bool:
-        """Sauvegarder un score dans la base de données"""
-        try:
-            conn = sqlite3.connect(self.db_file)
-            c = conn.cursor()
-            
-            c.execute('''
                 INSERT INTO scores 
                 (player_name, score, total_questions, correct_answers, wrong_answers)
                 VALUES (?, ?, ?, ?, ?)
@@ -1166,27 +1141,6 @@ async def end_game(websocket: websockets.WebSocketServerProtocol):
     }
     
     logger.info(f"Jeu terminé - Score: {final_score}/{total_questions}")
-    db.save_score({
-        'playerName': 'Joueur',
-        'score': game_stats['current_score'],
-        'totalQuestions': game_stats['total_questions'],
-        'correctAnswers': game_stats['correct_answers']
-    })
-    
-    # Envoyer le résultat final
-    await websocket.send(json.dumps({
-        'type': 'GAME_ENDED',
-        'data': {
-            'finalScore': game_stats['current_score'],
-            'totalQuestions': game_stats['total_questions'],
-            'correctAnswers': game_stats['correct_answers'],
-            'wrongAnswers': game_stats['wrong_answers']
-        }
-    }))
-    
-    logger.info(f"Jeu terminé. Score: {game_stats['current_score']}/{game_stats['total_questions']}")
-    
-    current_game = None
 
 
 async def handle_client(websocket: websockets.WebSocketServerProtocol, path: str):
