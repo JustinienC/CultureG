@@ -69,12 +69,19 @@ class Database:
         cursor = conn.cursor()
 
         cursor.execute(
-            'SELECT id, question, category FROM questions ORDER BY RANDOM() LIMIT 1'
+            'SELECT id, question, correct_answer, category FROM questions ORDER BY RANDOM() LIMIT 1'
         )
         result = cursor.fetchone()
 
         conn.close()
-        return dict(result) if result else None
+        if result:
+            return {
+                'id': result[0],
+                'question': result[1],
+                'correct_answer': result[2],
+                'category': result[3]
+            }
+        return None
 
     # Get questions by category
     def get_questions_by_category(self, category):
@@ -92,6 +99,9 @@ class Database:
 
     # Validate an answer
     def validate_answer(self, question_id, user_answer):
+        import unicodedata
+        import re
+        
         conn = self.get_connection()
         cursor = conn.cursor()
 
@@ -101,11 +111,36 @@ class Database:
         )
         correct = cursor.fetchone()
 
-        is_correct = correct and correct[0] == user_answer
+        if not correct:
+            conn.close()
+            return False
+        
+        # Normaliser les réponses pour comparaison (insensible à casse/accents/espaces)
+        def normalize(text):
+            if not text:
+                return ""
+            text = text.lower()
+            text = unicodedata.normalize('NFD', text)
+            text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+            text = re.sub(r'\s+', ' ', text).strip()
+            return text
+        
+        is_correct = normalize(correct[0]) == normalize(user_answer)
 
+        # Créer la table answers si elle n'existe pas
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS answers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                question_id INTEGER,
+                user_answer TEXT,
+                is_correct INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
         cursor.execute(
             'INSERT INTO answers (question_id, user_answer, is_correct) VALUES (?, ?, ?)',
-            (question_id, user_answer, is_correct)
+            (question_id, user_answer, 1 if is_correct else 0)
         )
 
         conn.commit()

@@ -9,6 +9,7 @@ import websockets
 import json
 import sqlite3
 import logging
+import queue
 from datetime import datetime
 from typing import Set, Dict, Optional
 try:
@@ -49,7 +50,6 @@ try:
     import numpy as np
     from scipy.signal import resample
     from vosk import Model, KaldiRecognizer
-    import queue
     VOSK_AVAILABLE = True
 except ImportError:
     VOSK_AVAILABLE = False
@@ -284,15 +284,23 @@ class VoskRecognitionController:
             return "réponse simulée"
         
         try:
-            # Attendre que GPIO 16 soit pressé
-            logger.info("En attente du démarrage de l'enregistrement (GPIO 16)...")
-            start_time = time.time()
-            while not gpio.recording_started and (time.time() - start_time) < timeout:
-                await asyncio.sleep(0.1)
-            
-            if not gpio.recording_started:
-                logger.warning("Timeout: Pas d'enregistrement")
-                return None
+            # Attendre que GPIO 16 soit pressé (ou démarrer automatiquement en mode simulation)
+            if not GPIO_AVAILABLE:
+                # Mode simulation : démarrer l'enregistrement automatiquement après 1 seconde
+                logger.info("Mode simulation : Démarrage automatique de l'enregistrement dans 1s...")
+                await asyncio.sleep(1)
+                gpio.recording_started = True
+                gpio.is_recording = True
+            else:
+                # Mode réel : attendre le bouton GPIO 16
+                logger.info("En attente du démarrage de l'enregistrement (GPIO 16)...")
+                start_time = time.time()
+                while not gpio.recording_started and (time.time() - start_time) < timeout:
+                    await asyncio.sleep(0.1)
+                
+                if not gpio.recording_started:
+                    logger.warning("Timeout: Pas d'enregistrement")
+                    return None
             
             # Démarrer l'enregistrement avec sounddevice
             logger.info("Enregistrement démarré (VOSK)...")
@@ -301,6 +309,7 @@ class VoskRecognitionController:
             # Créer un nouveau recognizer pour chaque reconnaissance
             self.recognizer = KaldiRecognizer(self.model, self.VOSK_RATE)
             
+            start_time = time.time()
             with sd.InputStream(
                 device=0,
                 channels=1,
@@ -308,7 +317,16 @@ class VoskRecognitionController:
                 dtype='float32',
                 callback=self.audio_callback
             ):
-                while gpio.is_recording and (time.time() - start_time) < timeout:
+                # Traiter l'audio pendant l'enregistrement (mode simulation ou réel)
+                logger.info("🎤 Enregistrement en cours (5 secondes en mode simulation)...")
+                logger.info("   👉 Parlez maintenant dans le micro !")
+                
+                recording_duration = 5 if not GPIO_AVAILABLE else timeout
+                while (time.time() - start_time) < recording_duration:
+                    # Vérifier si on doit arrêter (mode réel avec bouton)
+                    if GPIO_AVAILABLE and not gpio.is_recording:
+                        break
+                    
                     try:
                         audio_chunk = self.audio_queue.get(timeout=0.1)
                         
@@ -322,7 +340,9 @@ class VoskRecognitionController:
                             result = json.loads(self.recognizer.Result())
                             text = result.get("text", "")
                             if text:
-                                logger.info(f"VOSK: Réponse reconnue: {text}")
+                                logger.info("=" * 50)
+                                logger.info(f"🎤 VOSK: Réponse reconnue: '{text}'")
+                                logger.info("=" * 50)
                                 gpio.recording_started = False
                                 gpio.is_recording = False
                                 return text
@@ -330,11 +350,21 @@ class VoskRecognitionController:
                         continue
                     except Exception as e:
                         logger.error(f"Erreur traitement audio VOSK: {e}")
+                
+                # Arrêter l'enregistrement en mode simulation
+                if not GPIO_AVAILABLE:
+                    gpio.is_recording = False
+                    gpio.recording_started = False
             
             # Résultat final
             final_result = json.loads(self.recognizer.FinalResult())
             text = final_result.get("text", "")
-            logger.info(f"VOSK: Résultat final: {text}")
+            if text:
+                logger.info("=" * 50)
+                logger.info(f"🎤 VOSK: Résultat final: '{text}'")
+                logger.info("=" * 50)
+            else:
+                logger.warning("⚠️  Aucune réponse reconnue")
             
             gpio.recording_started = False
             gpio.is_recording = False
@@ -486,7 +516,32 @@ class Database:
         conn = sqlite3.connect(self.db_file)
         c = conn.cursor()
         
-        # Table des questions (format Question-Réponse)
+        # Vérifier si la table questions existe et sa structure
+        c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='questions'")
+        table_exists = c.fetchone() is not None
+        
+        if table_exists:
+            # Vérifier la structure de la table
+            c.execute("PRAGMA table_info(questions)")
+            columns = [row[1] for row in c.fetchall()]
+            
+            # Si la colonne correct_answer n'existe pas, on doit migrer
+            if 'correct_answer' not in columns:
+                logger.warning("⚠️ Ancienne structure détectée - Migration de la table questions...")
+                
+                # Sauvegarder les données existantes si nécessaire
+                try:
+                    c.execute('SELECT * FROM questions LIMIT 1')
+                    old_data = c.fetchall()
+                    has_old_data = len(old_data) > 0
+                except:
+                    has_old_data = False
+                
+                # Supprimer l'ancienne table
+                c.execute('DROP TABLE IF EXISTS questions')
+                logger.info("✅ Ancienne table supprimée")
+        
+        # Créer la nouvelle table avec la bonne structure
         c.execute('''
             CREATE TABLE IF NOT EXISTS questions (
                 id TEXT PRIMARY KEY,
@@ -499,15 +554,7 @@ class Database:
             )
         ''')
         
-        # Migration : Si l'ancienne table existe avec l'ancien format, on la migre
-        try:
-            c.execute('SELECT answers, correct_answer_index FROM questions LIMIT 1')
-            # Si on arrive ici, l'ancienne structure existe
-            logger.info("Détection de l'ancienne structure - Migration nécessaire")
-            # On ne migre pas automatiquement, il faut utiliser le script de migration
-        except sqlite3.OperationalError:
-            # Nouvelle structure, pas de migration nécessaire
-            pass
+        logger.info("✅ Table questions créée/migrée avec succès")
         
         # Table des scores
         c.execute('''
@@ -549,6 +596,11 @@ class Database:
             conn = sqlite3.connect(self.db_file)
             c = conn.cursor()
             
+            # Gérer timeLimit qui peut être None, null, ou JSONObject.NULL
+            time_limit = question_data.get('timeLimit')
+            if time_limit is None or str(time_limit) == 'null' or time_limit == 'NULL':
+                time_limit = None
+            
             c.execute('''
                 INSERT OR REPLACE INTO questions 
                 (id, question, correct_answer, category, difficulty, time_limit)
@@ -559,7 +611,7 @@ class Database:
                 question_data['correctAnswer'],
                 question_data.get('category', 'Général'),
                 question_data.get('difficulty', 'MEDIUM'),
-                question_data.get('timeLimit')
+                time_limit
             ))
             
             conn.commit()
@@ -568,6 +620,8 @@ class Database:
             return True
         except Exception as e:
             logger.error(f"Erreur ajout question: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
     
     def get_all_questions(self) -> list:
@@ -736,7 +790,8 @@ async def fetch_random_question_from_flask():
             async with session.get(f"{FLASK_SERVER_URL}/questions/random") as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    logger.info(f"Question récupérée depuis Flask: {data['question']}")
+                    question_id = data.get('id', '?')
+                    logger.debug(f"Question récupérée depuis Flask (ID: {question_id}): {data['question']}")
                     return data
                 else:
                     logger.error(f"Erreur Flask ({resp.status}): {await resp.text()}")
@@ -772,6 +827,32 @@ async def validate_answer_with_flask(question_id: int, user_answer: str):
         return False
 
 
+async def add_question_to_flask(question: str, correct_answer: str, category: str):
+    """Ajoute une question au serveur Flask"""
+    if not AIOHTTP_AVAILABLE:
+        logger.error("aiohttp non disponible - Impossible d'ajouter la question à Flask")
+        return False
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            payload = {
+                "question": question,
+                "correct_answer": correct_answer,
+                "category": category
+            }
+            async with session.post(f"{FLASK_SERVER_URL}/questions", json=payload) as resp:
+                if resp.status == 201:
+                    logger.info(f"✅ Question ajoutée à Flask: {question[:50]}...")
+                    return True
+                else:
+                    error_text = await resp.text()
+                    logger.error(f"Erreur ajout question Flask ({resp.status}): {error_text}")
+                    return False
+    except Exception as e:
+        logger.error(f"Erreur ajout question Flask: {e}")
+        return False
+
+
 # ============================================================================
 # FONCTIONS WEBSOCKET
 # ============================================================================
@@ -802,13 +883,66 @@ async def handle_message(websocket: websockets.WebSocketServerProtocol, message:
         
         # Routeur de messages
         if message_type == 'ADD_QUESTION':
-            success = db.add_question(data['data'])
+            question_data = data.get('data', {})
+            
+            logger.info(f"📥 Réception question: {json.dumps(question_data, indent=2)}")
+            
+            # Vérifier que les champs requis sont présents
+            if not question_data:
+                logger.error("❌ Données de question vides")
+                await websocket.send(json.dumps({
+                    'type': 'ERROR',
+                    'data': {'success': False},
+                    'message': 'Données de question vides'
+                }))
+                return
+            
+            required_fields = ['id', 'question', 'correctAnswer']
+            missing_fields = [field for field in required_fields if field not in question_data]
+            if missing_fields:
+                logger.error(f"❌ Champs manquants: {missing_fields}")
+                await websocket.send(json.dumps({
+                    'type': 'ERROR',
+                    'data': {'success': False},
+                    'message': f'Champs manquants: {", ".join(missing_fields)}'
+                }))
+                return
+            
+            # Sauvegarder dans la base locale
+            try:
+                success = db.add_question(question_data)
+                logger.info(f"{'✅' if success else '❌'} Question sauvegardée localement: {question_data.get('id')}")
+            except Exception as e:
+                logger.error(f"❌ Erreur sauvegarde locale: {e}")
+                success = False
+            
+            # Envoyer aussi au serveur Flask pour qu'elle soit disponible dans le jeu
+            flask_success = False
+            if success and AIOHTTP_AVAILABLE:
+                question_text = question_data.get('question', '')
+                correct_answer = question_data.get('correctAnswer', '')
+                category = question_data.get('category', 'Général')
+                
+                try:
+                    flask_success = await add_question_to_flask(question_text, correct_answer, category)
+                    if flask_success:
+                        logger.info("✅ Question synchronisée avec Flask")
+                    else:
+                        logger.warning("⚠️ Question ajoutée localement mais pas synchronisée avec Flask")
+                except Exception as e:
+                    logger.error(f"❌ Erreur synchronisation Flask: {e}")
+            
             response = {
                 'type': 'QUESTION_ADDED' if success else 'ERROR',
-                'data': {'success': success, 'questionId': data['data'].get('id')},
+                'data': {
+                    'success': success,
+                    'questionId': question_data.get('id'),
+                    'flaskSynced': flask_success
+                },
                 'message': 'Question ajoutée' if success else 'Erreur lors de l\'ajout'
             }
             await websocket.send(json.dumps(response))
+            logger.info(f"📤 Réponse envoyée: {response['type']}")
         
         elif message_type == 'GET_QUESTIONS':
             questions = db.get_all_questions()
@@ -1241,6 +1375,10 @@ async def infinite_game_loop():
     question_count_in_session = 0
     QUESTIONS_PER_STATS = 10  # Envoyer les stats toutes les 10 questions
     
+    # Garder une trace des questions récentes pour éviter les répétitions
+    recent_question_ids = []
+    MAX_RECENT_QUESTIONS = 5  # Éviter de répéter les 5 dernières questions
+    
     await broadcast_message({
         "type": "GAME_STARTED",
         "data": {"message": "Mode jeu en boucle infinie démarré"}
@@ -1249,18 +1387,44 @@ async def infinite_game_loop():
     # Boucle infinie
     while True:
         try:
-            # Récupérer question depuis Flask
-            question_data = await fetch_random_question_from_flask()
+            # Récupérer question depuis Flask (avec évitement des répétitions)
+            max_attempts = 10
+            question_data = None
+            
+            for attempt in range(max_attempts):
+                question_data = await fetch_random_question_from_flask()
+                
+                if not question_data:
+                    logger.error("Impossible de récupérer une question, retry dans 5s...")
+                    await asyncio.sleep(5)
+                    break
+                
+                question_id = question_data.get('id')
+                
+                # Si la question n'est pas dans les récentes, on l'utilise
+                if question_id not in recent_question_ids:
+                    break
+                
+                # Sinon, on réessaye (sauf si on a déjà beaucoup de questions récentes)
+                if len(recent_question_ids) < MAX_RECENT_QUESTIONS:
+                    break
             
             if not question_data:
-                logger.error("Impossible de récupérer une question, retry dans 5s...")
-                await asyncio.sleep(5)
                 continue
+            
+            question_id = question_data.get('id')
+            
+            # Ajouter à la liste des questions récentes
+            if question_id not in recent_question_ids:
+                recent_question_ids.append(question_id)
+                # Garder seulement les N dernières
+                if len(recent_question_ids) > MAX_RECENT_QUESTIONS:
+                    recent_question_ids.pop(0)
             
             question_count_in_session += 1
             game_stats["total_questions"] += 1
             
-            logger.info(f"📝 Question #{game_stats['total_questions']}: {question_data['question']}")
+            logger.info(f"📝 Question #{game_stats['total_questions']} (ID: {question_id}): {question_data['question']}")
             
             # Lire la question via TTS
             tts_controller.speak(question_data['question'])
@@ -1270,7 +1434,12 @@ async def infinite_game_loop():
             user_answer = await speech_controller.wait_for_answer(timeout=60)
             
             if user_answer:
-                logger.info(f"💬 Réponse utilisateur: {user_answer}")
+                logger.info("")
+                logger.info("=" * 60)
+                logger.info(f"💬 RÉPONSE UTILISATEUR: '{user_answer}'")
+                logger.info(f"📋 Réponse attendue: '{question_data.get('correct_answer', '?')}'")
+                logger.info("=" * 60)
+                logger.info("")
                 
                 # Valider avec Flask
                 is_correct = await validate_answer_with_flask(

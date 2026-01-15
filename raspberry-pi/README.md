@@ -26,17 +26,45 @@ unzip vosk-model-small-fr-0.22.zip
 
 Le dossier `vosk-model-small-fr-0.22` doit être présent dans le répertoire `raspberry-pi/`.
 
-### 2. Installer les dépendances
+### 2. Installer les dépendances système (Raspberry Pi)
 
-```bash
-pip3 install -r requirements.txt
-```
-
-**Note:** Si tu rencontres des erreurs avec `sounddevice` ou `scipy`, installe d'abord les dépendances système :
+**Important pour Raspberry Pi 3 :**
 
 ```bash
 sudo apt-get update
-sudo apt-get install libportaudio2 libatlas-base-dev
+sudo apt-get install -y \
+    python3-pip \
+    python3-venv \
+    libportaudio2 \
+    libportaudio-dev \
+    portaudio19-dev \
+    libatlas-base-dev \
+    libasound2-dev \
+    build-essential
+```
+
+### 3. Installer les dépendances Python
+
+**Option A : Virtual Environment (recommandé)**
+
+```bash
+cd raspberry-pi
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+**Option B : Installation système (si venv ne fonctionne pas)**
+
+```bash
+pip3 install --user -r requirements.txt
+```
+
+**Note:** Si erreur avec `numpy` ou `scipy`, installe les versions précompilées :
+
+```bash
+pip3 install --user numpy==1.23.5 scipy==1.9.3
 ```
 
 ### 3. Configuration GPIO (optionnel)
