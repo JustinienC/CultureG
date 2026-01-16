@@ -14,6 +14,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.cultureg.ui.screens.QuestionsScreen
 import com.cultureg.ui.screens.ConnectionScreen
+import com.cultureg.ui.screens.GameScreen
 import com.cultureg.ui.theme.CultureGTheme
 
 /**
@@ -39,9 +40,9 @@ fun CultureGApp() {
     var selectedItem by remember { mutableIntStateOf(0) }
     
     // Liste des items de navigation
-    val items = listOf("Accueil", "Questions", "Config", "Stats", "Connexion")
+    val items = listOf("Jeu", "Questions", "Config", "Stats", "Connexion")
     val icons = listOf(
-        Icons.Filled.Home,
+        Icons.Filled.PlayArrow,
         Icons.Filled.QuestionMark,
         Icons.Filled.Settings,
         Icons.Filled.BarChart,
@@ -77,7 +78,7 @@ fun CultureGApp() {
                 .padding(innerPadding)
         ) {
             when (selectedItem) {
-                0 -> HomeScreen()
+                0 -> GameScreen()
                 1 -> QuestionsScreen()
                 2 -> SettingsScreenPlaceholder()
                 3 -> StatsScreenPlaceholder()

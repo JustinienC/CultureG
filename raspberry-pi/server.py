@@ -988,9 +988,25 @@ async def handle_message(websocket: websockets.WebSocketServerProtocol, message:
             }))
         
         elif message_type == 'ANSWER_QUESTION':
-            # Les réponses sont gérées automatiquement via reconnaissance vocale
-            # Ce message peut être utilisé pour forcer une réponse depuis l'app si nécessaire
-            await handle_answer(websocket, data['data'])
+            # Réponse reçue depuis l'application Android (reconnaissance vocale sur téléphone)
+            answer_data = data.get('data', {})
+            if not answer_data:
+                await websocket.send(json.dumps({
+                    'type': 'ERROR',
+                    'message': 'Données de réponse manquantes'
+                }))
+                return
+            
+            user_answer = answer_data.get('answer', '')
+            if not user_answer:
+                await websocket.send(json.dumps({
+                    'type': 'ERROR',
+                    'message': 'Réponse vide'
+                }))
+                return
+            
+            logger.info(f"📥 Réponse reçue depuis Android: '{user_answer}'")
+            await handle_answer(websocket, answer_data)
         
         elif message_type == 'GET_SCORES':
             scores = db.get_recent_scores(limit=data.get('limit', 10))
@@ -1185,42 +1201,11 @@ async def send_next_question(websocket: websockets.WebSocketServerProtocol):
     logger.info(f"Lecture de la question via TTS: {question_text}")
     tts_controller.speak(question_text)
     
-    # Démarrer le chronomètre si timeLimit est défini
-    if time_limit and time_limit > 0:
-        question_start_time = time.time()
-        logger.info(f"Chronomètre démarré: {time_limit} secondes")
-        question_timer_task = asyncio.create_task(
-            wait_for_timeout(websocket, time_limit)
-        )
-    else:
-        question_start_time = None
-        logger.info("Chronomètre désactivé pour cette question")
-    
-    # Attendre la réponse via reconnaissance vocale
-    # Note: Le jeu se déroule maintenant entièrement sur la Raspberry Pi
-    # L'utilisateur répond via le bouton d'enregistrement + micro
-    logger.info("En attente de la réponse de l'utilisateur...")
-    user_answer = await speech_controller.wait_for_answer(
-        timeout=time_limit or 30,
-        phrase_time_limit=10
-    )
-    
-    if user_answer:
-        # Annuler le timer si une réponse est reçue
-        if question_timer_task and not question_timer_task.done():
-            question_timer_task.cancel()
-            question_timer_task = None
-        
-        # Traiter la réponse
-        answer_data = {
-            'answer': user_answer,
-            'timeElapsed': time.time() - question_start_time if question_start_time else 0
-        }
-        await handle_answer(websocket, answer_data)
-    else:
-        # Timeout ou erreur de reconnaissance
-        logger.warning("Aucune réponse reçue ou reconnaissance échouée")
-        # Le timeout sera géré par wait_for_timeout si le chronomètre est actif
+    # Plus de timeout - on attend indéfiniment la réponse via WebSocket
+    question_start_time = None
+    question_timer_task = None
+    logger.info("En attente de la réponse de l'utilisateur via WebSocket (pas de timeout)...")
+    # La réponse sera reçue via handle_message() avec le type ANSWER_QUESTION
 
 
 async def handle_answer(websocket: websockets.WebSocketServerProtocol, answer_data: Dict):
@@ -1243,12 +1228,8 @@ async def handle_answer(websocket: websockets.WebSocketServerProtocol, answer_da
     user_answer_text = answer_data.get('answer', '')  # Réponse textuelle
     correct_answer_text = question['correctAnswer']
     
-    # Calculer le temps écoulé
-    time_elapsed = 0
-    if question_start_time:
-        time_elapsed = time.time() - question_start_time
-    else:
-        time_elapsed = answer_data.get('timeElapsed', 0)
+    # Plus de timeout, donc timeElapsed = 0 (ou optionnel depuis answer_data)
+    time_elapsed = answer_data.get('timeElapsed', 0)
     
     # Comparaison textuelle normalisée
     is_correct = is_answer_correct(user_answer_text, correct_answer_text)
@@ -1267,9 +1248,19 @@ async def handle_answer(websocket: websockets.WebSocketServerProtocol, answer_da
         else:
             game_stats['current_score'] += 1
         gpio.good_answer()
+        
+        # Annoncer le résultat via TTS
+        tts_message = "Correct !"
+        logger.info(f"TTS: {tts_message}")
+        tts_controller.speak(tts_message)
     else:
         game_stats['wrong_answers'] += 1
         gpio.wrong_answer()
+        
+        # Annoncer le résultat via TTS
+        tts_message = f"Incorrect. La bonne réponse était {correct_answer_text}"
+        logger.info(f"TTS: {tts_message}")
+        tts_controller.speak(tts_message)
     
     # Envoyer le résultat
     await websocket.send(json.dumps({

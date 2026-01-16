@@ -159,6 +159,13 @@ class WebSocketClient {
     }
     
     /**
+     * Envoyer une réponse à une question
+     */
+    fun sendAnswer(answer: String): Boolean {
+        return sendMessage("ANSWER_QUESTION", mapOf("answer" to answer))
+    }
+    
+    /**
      * Se déconnecter
      */
     fun disconnect() {
