@@ -22,8 +22,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cultureg.data.api.ConnectionState
 import com.cultureg.viewmodel.GameViewModel
-import com.cultureg.viewmodel.GameState
-import com.cultureg.viewmodel.QuestionData
 
 /**
  * Écran de jeu avec bouton d'enregistrement
@@ -34,8 +32,6 @@ fun GameScreen(
 ) {
     val context = LocalContext.current
     val connectionState by viewModel.connectionState.collectAsState()
-    val gameState by viewModel.gameState.collectAsState()
-    val currentQuestion by viewModel.currentQuestion.collectAsState()
     val isListening by viewModel.isListening.collectAsState()
     val partialResult by viewModel.partialResult.collectAsState()
     val error by viewModel.errorMessage.collectAsState()
@@ -78,13 +74,6 @@ fun GameScreen(
         // En-tête avec état de connexion
         ConnectionStatusCard(connectionState)
         
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Question actuelle (si disponible)
-        currentQuestion?.let { question ->
-            QuestionCard(question)
-        }
-        
         Spacer(modifier = Modifier.weight(1f))
         
         // Résultat partiel de la reconnaissance
@@ -110,7 +99,6 @@ fun GameScreen(
         // Bouton d'enregistrement
         RecordButton(
             isListening = isListening,
-            gameState = gameState,
             onStartClick = { requestPermissionAndStartRecording() },
             onStopClick = { viewModel.stopRecording() }
         )
@@ -148,15 +136,6 @@ fun GameScreen(
                     }
                 }
             }
-        }
-        
-        // Résultat de la réponse
-        when (val state = gameState) {
-            is GameState.AnswerProcessed -> {
-                Spacer(modifier = Modifier.height(8.dp))
-                AnswerResultCard(state)
-            }
-            else -> {}
         }
     }
 }
@@ -201,51 +180,11 @@ fun ConnectionStatusCard(connectionState: ConnectionState) {
 }
 
 /**
- * Carte de question
- */
-@Composable
-fun QuestionCard(question: QuestionData) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Question ${question.questionNumber}/${question.totalQuestions}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                Text(
-                    text = "Score: ${question.currentScore}",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = question.question,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-/**
  * Bouton d'enregistrement
  */
 @Composable
 fun RecordButton(
     isListening: Boolean,
-    gameState: GameState,
     onStartClick: () -> Unit,
     onStopClick: () -> Unit
 ) {
@@ -305,56 +244,3 @@ fun RecordButton(
     }
 }
 
-/**
- * Carte de résultat de réponse
- */
-@Composable
-fun AnswerResultCard(result: GameState.AnswerProcessed) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (result.isCorrect) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.errorContainer
-            }
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    if (result.isCorrect) Icons.Filled.CheckCircle else Icons.Filled.Cancel,
-                    contentDescription = null,
-                    tint = if (result.isCorrect) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.error
-                    }
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (result.isCorrect) "Correct !" else "Incorrect",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            if (!result.isCorrect) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "La bonne réponse était: ${result.correctAnswer}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Votre réponse: ${result.userAnswer}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            )
-        }
-    }
-}
