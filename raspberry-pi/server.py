@@ -1531,10 +1531,13 @@ async def handle_client(websocket: websockets.WebSocketServerProtocol, path: str
 
 async def main():
     """Point d'entrée principal"""
+    mode_str = "RÉEL" if GPIO_AVAILABLE else "SIMULATION"
+    gpio_status = "disponible" if GPIO_AVAILABLE else "non disponible"
+    
     logger.info("=" * 50)
     logger.info("Serveur CultureG - Raspberry Pi")
     logger.info("=" * 50)
-    logger.info(f"Mode: {'RÉEL' if GPIO_AVAILABLE else 'SIMULATION'} (GPIO {'disponible' if GPIO_AVAILABLE else 'non disponible'})")
+    logger.info(f"Mode: {mode_str} (GPIO {gpio_status})")
     logger.info(f"Écoute sur ws://{WS_HOST}:{WS_PORT}")
     logger.info(f"Base de données: {DB_FILE}")
     logger.info(f"Flask server: {FLASK_SERVER_URL}")
@@ -1542,30 +1545,34 @@ async def main():
     logger.info("Appuyez sur Ctrl+C pour arrêter")
     logger.info("=" * 50)
     
+    game_task = None
+    
     try:
-        async with websockets.serve(handle_client, WS_HOST, WS_PORT):
-            # Lancer la boucle de jeu infinie en tâche d'arrière-plan
+        server = websockets.serve(handle_client, WS_HOST, WS_PORT)
+        async with server:
             game_task = asyncio.create_task(infinite_game_loop())
             
             try:
-                await asyncio.Future()  # Run forever
+                await asyncio.Future()
             except KeyboardInterrupt:
                 logger.info("\n🛑 Arrêt du serveur...")
-                game_task.cancel()
+                if game_task:
+                    game_task.cancel()
                 
-                # Envoyer les stats finales
                 try:
-                    await broadcast_message({
+                    session_duration = time.time() - game_stats.get("session_start", time.time())
+                    final_stats = {
                         "type": "GAME_STATS_FINAL",
                         "data": {
                             "total_questions": game_stats["total_questions"],
                             "correct_answers": game_stats["correct_answers"],
                             "wrong_answers": game_stats["wrong_answers"],
                             "current_score": game_stats["current_score"],
-                            "total_duration": time.time() - game_stats.get("session_start", time.time())
+                            "total_duration": session_duration
                         }
-                    })
-                except:
+                    }
+                    await broadcast_message(final_stats)
+                except Exception:
                     pass
     except KeyboardInterrupt:
         logger.info("\nArrêt du serveur...")

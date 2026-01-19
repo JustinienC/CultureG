@@ -10,9 +10,6 @@ import okio.ByteString
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-/**
- * Client WebSocket pour communiquer avec le Raspberry Pi
- */
 class WebSocketClient {
     
     private var webSocket: WebSocket? = null
@@ -21,23 +18,17 @@ class WebSocketClient {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
     
-    // État de la connexion
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
     
-    // Messages reçus
     private val _messages = MutableStateFlow<List<WebSocketMessage>>(emptyList())
     val messages: StateFlow<List<WebSocketMessage>> = _messages.asStateFlow()
     
-    // Dernier message reçu
     private val _lastMessage = MutableStateFlow<WebSocketMessage?>(null)
     val lastMessage: StateFlow<WebSocketMessage?> = _lastMessage.asStateFlow()
     
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     
-    /**
-     * Se connecter au serveur WebSocket
-     */
     fun connect(url: String) {
         if (_connectionState.value == ConnectionState.Connected) {
             Log.w(TAG, "Déjà connecté")
@@ -47,7 +38,6 @@ class WebSocketClient {
         Log.d(TAG, "Tentative de connexion à: $url")
         _connectionState.value = ConnectionState.Connecting
         
-        // Nettoyer l'ancienne connexion si elle existe
         webSocket?.close(1000, "Nouvelle connexion")
         
         val request = Request.Builder()
@@ -120,9 +110,6 @@ class WebSocketClient {
         })
     }
     
-    /**
-     * Envoyer un message au serveur
-     */
     fun sendMessage(type: String, data: Map<String, Any>? = null): Boolean {
         val webSocket = this.webSocket ?: run {
             Log.e(TAG, "WebSocket non connecté")
@@ -151,23 +138,14 @@ class WebSocketClient {
         }
     }
     
-    /**
-     * Envoyer un ping
-     */
     fun ping(): Boolean {
         return sendMessage("PING")
     }
     
-    /**
-     * Envoyer une réponse à une question
-     */
     fun sendAnswer(answer: String): Boolean {
         return sendMessage("ANSWER_QUESTION", mapOf("answer" to answer))
     }
     
-    /**
-     * Se déconnecter
-     */
     fun disconnect() {
         webSocket?.close(1000, "Déconnexion normale")
         webSocket = null
@@ -176,9 +154,6 @@ class WebSocketClient {
         }
     }
     
-    /**
-     * Nettoyer les ressources
-     */
     fun cleanup() {
         disconnect()
         scope.cancel()
@@ -198,9 +173,6 @@ class WebSocketClient {
     }
 }
 
-/**
- * État de la connexion WebSocket
- */
 sealed class ConnectionState {
     object Disconnected : ConnectionState()
     object Connecting : ConnectionState()
@@ -209,9 +181,6 @@ sealed class ConnectionState {
     data class Error(val message: String) : ConnectionState()
 }
 
-/**
- * Message WebSocket reçu
- */
 data class WebSocketMessage(
     val type: String,
     val data: String?,

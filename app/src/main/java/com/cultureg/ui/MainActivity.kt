@@ -17,9 +17,6 @@ import com.cultureg.ui.screens.ConnectionScreen
 import com.cultureg.ui.screens.GameScreen
 import com.cultureg.ui.theme.CultureGTheme
 
-/**
- * Activité principale de l'application CultureG
- */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,15 +28,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/**
- * Composable principal de l'application
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CultureGApp() {
     var selectedItem by remember { mutableIntStateOf(0) }
     
-    // Liste des items de navigation
     val items = listOf("Jeu", "Questions", "Config", "Stats", "Connexion")
     val icons = listOf(
         Icons.Filled.PlayArrow,
@@ -88,9 +81,6 @@ fun CultureGApp() {
     }
 }
 
-/**
- * Écran d'accueil
- */
 @Composable
 fun HomeScreen() {
     Column(
@@ -123,7 +113,6 @@ fun HomeScreen() {
         
         Spacer(modifier = Modifier.height(48.dp))
         
-        // Statut de connexion
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -164,7 +153,7 @@ fun HomeScreen() {
         Spacer(modifier = Modifier.height(24.dp))
         
         Button(
-            onClick = { /* TODO: Connecter */ },
+            onClick = { },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 32.dp)
@@ -177,9 +166,6 @@ fun HomeScreen() {
 }
 
 
-/**
- * Écran de configuration (placeholder)
- */
 @Composable
 fun SettingsScreenPlaceholder() {
     Column(
@@ -217,9 +203,6 @@ fun SettingsScreenPlaceholder() {
     }
 }
 
-/**
- * Écran des statistiques (placeholder)
- */
 @Composable
 fun StatsScreenPlaceholder() {
     Column(

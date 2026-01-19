@@ -11,27 +11,20 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * Service pour gérer la reconnaissance vocale Android
- */
 class SpeechRecognitionService(private val context: Context) {
     
     private var speechRecognizer: SpeechRecognizer? = null
     private val recognizerIntent: Intent
     
-    // État de la reconnaissance
     private val _isListening = MutableStateFlow(false)
     val isListening: StateFlow<Boolean> = _isListening.asStateFlow()
     
-    // Résultat de la reconnaissance
     private val _recognitionResult = MutableStateFlow<String?>(null)
     val recognitionResult: StateFlow<String?> = _recognitionResult.asStateFlow()
     
-    // Erreur de reconnaissance
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
     
-    // Texte partiel (pendant la reconnaissance)
     private val _partialResult = MutableStateFlow<String?>(null)
     val partialResult: StateFlow<String?> = _partialResult.asStateFlow()
     
@@ -40,7 +33,6 @@ class SpeechRecognitionService(private val context: Context) {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "fr-FR")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            // Pas de timeout - on continue jusqu'à ce que l'utilisateur arrête
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
         
@@ -52,9 +44,6 @@ class SpeechRecognitionService(private val context: Context) {
         }
     }
     
-    /**
-     * Démarrer l'enregistrement
-     */
     fun startListening() {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             _error.value = "Reconnaissance vocale non disponible"
@@ -80,9 +69,6 @@ class SpeechRecognitionService(private val context: Context) {
         }
     }
     
-    /**
-     * Arrêter l'enregistrement
-     */
     fun stopListening() {
         try {
             speechRecognizer?.stopListening()
@@ -93,9 +79,6 @@ class SpeechRecognitionService(private val context: Context) {
         }
     }
     
-    /**
-     * Annuler l'enregistrement
-     */
     fun cancelListening() {
         try {
             speechRecognizer?.cancel()
@@ -108,9 +91,6 @@ class SpeechRecognitionService(private val context: Context) {
         }
     }
     
-    /**
-     * Créer le listener de reconnaissance
-     */
     private fun createRecognitionListener(): RecognitionListener {
         return object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
@@ -122,11 +102,9 @@ class SpeechRecognitionService(private val context: Context) {
             }
             
             override fun onRmsChanged(rmsdB: Float) {
-                // Volume audio détecté (peut être utilisé pour afficher un indicateur visuel)
             }
             
             override fun onBufferReceived(buffer: ByteArray?) {
-                // Buffer audio reçu
             }
             
             override fun onEndOfSpeech() {
@@ -181,9 +159,6 @@ class SpeechRecognitionService(private val context: Context) {
         }
     }
     
-    /**
-     * Nettoyer les ressources
-     */
     fun cleanup() {
         cancelListening()
         speechRecognizer?.destroy()

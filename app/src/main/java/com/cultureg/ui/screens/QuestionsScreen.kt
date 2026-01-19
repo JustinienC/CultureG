@@ -21,9 +21,6 @@ import com.cultureg.data.models.Question
 import com.cultureg.data.models.QuestionCategories
 import com.cultureg.viewmodel.QuestionsViewModel
 
-/**
- * Écran principal de gestion des questions
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuestionsScreen(
@@ -37,10 +34,8 @@ fun QuestionsScreen(
     var showDeleteDialog by remember { mutableStateOf<Question?>(null) }
     var showFilterDialog by remember { mutableStateOf(false) }
     
-    // Afficher les messages
     LaunchedEffect(uiState.showMessage) {
         uiState.showMessage?.let {
-            // Message affiché
         }
     }
     
@@ -51,7 +46,6 @@ fun QuestionsScreen(
                     Text("Questions (${filteredQuestions.size})") 
                 },
                 actions = {
-                    // Bouton filtre
                     IconButton(onClick = { showFilterDialog = true }) {
                         Icon(Icons.Filled.FilterList, contentDescription = "Filtrer")
                     }
@@ -77,13 +71,11 @@ fun QuestionsScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Barre de recherche
             SearchBar(
                 query = uiState.searchQuery,
                 onQueryChange = { viewModel.searchQuestions(it) }
             )
             
-            // Filtre actif
             if (uiState.selectedCategory != "Toutes") {
                 FilterChip(
                     category = uiState.selectedCategory,
@@ -91,7 +83,6 @@ fun QuestionsScreen(
                 )
             }
             
-            // Liste des questions
             if (filteredQuestions.isEmpty()) {
                 EmptyState(
                     onAddClick = { showAddDialog = true }
@@ -106,7 +97,6 @@ fun QuestionsScreen(
         }
     }
     
-    // Dialogue d'ajout
     if (showAddDialog) {
         QuestionFormDialog(
             onDismiss = { showAddDialog = false },
@@ -117,7 +107,6 @@ fun QuestionsScreen(
         )
     }
     
-    // Dialogue de modification
     questionToEdit?.let { question ->
         QuestionFormDialog(
             question = question,
@@ -136,7 +125,6 @@ fun QuestionsScreen(
         )
     }
     
-    // Dialogue de suppression
     showDeleteDialog?.let { question ->
         DeleteConfirmDialog(
             question = question,
@@ -148,7 +136,6 @@ fun QuestionsScreen(
         )
     }
     
-    // Dialogue de filtre
     if (showFilterDialog) {
         FilterDialog(
             selectedCategory = uiState.selectedCategory,
@@ -160,7 +147,6 @@ fun QuestionsScreen(
         )
     }
     
-    // Snackbar pour messages
     uiState.showMessage?.let { message ->
         LaunchedEffect(message) {
             kotlinx.coroutines.delay(2000)
@@ -169,9 +155,6 @@ fun QuestionsScreen(
     }
 }
 
-/**
- * Barre de recherche
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchBar(
@@ -200,9 +183,6 @@ fun SearchBar(
     )
 }
 
-/**
- * Chip de filtre actif
- */
 @Composable
 fun FilterChip(
     category: String,
@@ -245,9 +225,6 @@ fun FilterChip(
     }
 }
 
-/**
- * Liste des questions
- */
 @Composable
 fun QuestionsList(
     questions: List<Question>,
@@ -269,9 +246,6 @@ fun QuestionsList(
     }
 }
 
-/**
- * Card d'une question
- */
 @Composable
 fun QuestionCard(
     question: Question,
@@ -285,14 +259,12 @@ fun QuestionCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            // En-tête avec catégorie et difficulté
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row {
-                    // Badge catégorie
                     Surface(
                         color = MaterialTheme.colorScheme.primaryContainer,
                         shape = RoundedCornerShape(4.dp)
@@ -305,7 +277,6 @@ fun QuestionCard(
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    // Badge difficulté
                     Surface(
                         color = when (question.difficulty) {
                             Difficulty.EASY -> MaterialTheme.colorScheme.tertiaryContainer
@@ -322,7 +293,6 @@ fun QuestionCard(
                     }
                 }
                 
-                // Actions
                 Row {
                     IconButton(onClick = onEditClick) {
                         Icon(
@@ -343,7 +313,6 @@ fun QuestionCard(
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            // Question
             Text(
                 text = question.question,
                 style = MaterialTheme.typography.titleMedium,
@@ -352,7 +321,6 @@ fun QuestionCard(
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            // Réponse correcte
             Row(
                 modifier = Modifier.padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -371,7 +339,6 @@ fun QuestionCard(
                 )
             }
             
-            // Temps limite (si défini)
             question.timeLimit?.let { timeLimit ->
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
@@ -395,9 +362,6 @@ fun QuestionCard(
     }
 }
 
-/**
- * État vide
- */
 @Composable
 fun EmptyState(
     onAddClick: () -> Unit
@@ -436,9 +400,6 @@ fun EmptyState(
     }
 }
 
-/**
- * Dialogue de confirmation de suppression
- */
 @Composable
 fun DeleteConfirmDialog(
     question: Question,
@@ -464,9 +425,6 @@ fun DeleteConfirmDialog(
     )
 }
 
-/**
- * Dialogue de filtre par catégorie
- */
 @Composable
 fun FilterDialog(
     selectedCategory: String,

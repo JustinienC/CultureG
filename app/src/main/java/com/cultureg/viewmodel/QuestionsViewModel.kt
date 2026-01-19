@@ -11,34 +11,26 @@ import com.cultureg.data.repository.QuestionsRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-/**
- * ViewModel pour la gestion des questions
- */
 class QuestionsViewModel : ViewModel() {
     
     private val repository = QuestionsRepository.getInstance()
     private val api = RaspberryPiApi.getInstance()
     
-    // État de l'UI
     private val _uiState = MutableStateFlow(QuestionsUiState())
     val uiState: StateFlow<QuestionsUiState> = _uiState.asStateFlow()
     
-    // Questions
     val questions: StateFlow<List<Question>> = repository.questions
     
-    // Questions filtrées
     private val _filteredQuestions = MutableStateFlow<List<Question>>(emptyList())
     val filteredQuestions: StateFlow<List<Question>> = _filteredQuestions.asStateFlow()
     
     init {
-        // Observer les questions et appliquer les filtres
         viewModelScope.launch {
             questions.collect { allQuestions ->
                 applyFilters(allQuestions)
             }
         }
         
-        // Charger les questions du Raspberry Pi au démarrage si connecté
         viewModelScope.launch {
             api.getConnectionState().collect { state ->
                 if (state is ConnectionState.Connected) {
@@ -47,7 +39,6 @@ class QuestionsViewModel : ViewModel() {
             }
         }
         
-        // Observer les messages du serveur
         viewModelScope.launch {
             api.observeMessageType("QUESTIONS_LIST").collect { message ->
                 handleQuestionsListFromServer(message)
@@ -55,35 +46,24 @@ class QuestionsViewModel : ViewModel() {
         }
     }
     
-    /**
-     * Recherche de questions
-     */
     fun searchQuestions(query: String) {
         _uiState.value = _uiState.value.copy(searchQuery = query)
         applyFilters(questions.value)
     }
     
-    /**
-     * Filtre par catégorie
-     */
     fun filterByCategory(category: String) {
         _uiState.value = _uiState.value.copy(selectedCategory = category)
         applyFilters(questions.value)
     }
     
-    /**
-     * Applique les filtres
-     */
     private fun applyFilters(allQuestions: List<Question>) {
         var filtered = allQuestions
         
-        // Filtre par catégorie
         val category = _uiState.value.selectedCategory
         if (category != "Toutes") {
             filtered = filtered.filter { it.category == category }
         }
         
-        // Filtre par recherche
         val query = _uiState.value.searchQuery
         if (query.isNotBlank()) {
             filtered = filtered.filter { question ->
@@ -95,9 +75,6 @@ class QuestionsViewModel : ViewModel() {
         _filteredQuestions.value = filtered
     }
     
-    /**
-     * Ajoute une nouvelle question (format Question-Réponse)
-     */
     fun addQuestion(
         question: String,
         correctAnswer: String,
@@ -113,10 +90,8 @@ class QuestionsViewModel : ViewModel() {
                 difficulty = difficulty,
                 timeLimit = timeLimit
             )
-            // Ajouter localement
             repository.addQuestion(newQuestion)
             
-            // Envoyer au Raspberry Pi si connecté
             viewModelScope.launch {
                 val connectionState = api.getConnectionState().value
                 if (connectionState is ConnectionState.Connected) {
@@ -141,9 +116,6 @@ class QuestionsViewModel : ViewModel() {
         }
     }
     
-    /**
-     * Met à jour une question (format Question-Réponse)
-     */
     fun updateQuestion(
         id: String,
         question: String,
@@ -161,14 +133,12 @@ class QuestionsViewModel : ViewModel() {
                 difficulty = difficulty,
                 timeLimit = timeLimit
             )
-            // Mettre à jour localement
             repository.updateQuestion(updatedQuestion)
             
-            // Envoyer au Raspberry Pi si connecté
             viewModelScope.launch {
                 val connectionState = api.getConnectionState().value
                 if (connectionState is ConnectionState.Connected) {
-                    api.addQuestion(updatedQuestion) // Le serveur fait INSERT OR REPLACE
+                    api.addQuestion(updatedQuestion)
                     _uiState.value = _uiState.value.copy(
                         showMessage = "Question modifiée et synchronisée"
                     )
@@ -181,14 +151,9 @@ class QuestionsViewModel : ViewModel() {
         }
     }
     
-    /**
-     * Supprime une question
-     */
     fun deleteQuestion(questionId: String) {
-        // Supprimer localement
         repository.deleteQuestion(questionId)
         
-        // Supprimer du Raspberry Pi si connecté
         viewModelScope.launch {
             val connectionState = api.getConnectionState().value
             if (connectionState is ConnectionState.Connected) {
@@ -204,16 +169,10 @@ class QuestionsViewModel : ViewModel() {
         }
     }
     
-    /**
-     * Obtient une question par ID
-     */
     fun getQuestionById(questionId: String): Question? {
         return repository.getQuestionById(questionId)
     }
     
-    /**
-     * Valide une question (format Question-Réponse)
-     */
     private fun validateQuestion(
         question: String,
         correctAnswer: String
@@ -235,16 +194,10 @@ class QuestionsViewModel : ViewModel() {
         return true
     }
     
-    /**
-     * Efface le message
-     */
     fun clearMessage() {
         _uiState.value = _uiState.value.copy(showMessage = null)
     }
     
-    /**
-     * Charger les questions depuis le serveur
-     */
     private fun loadQuestionsFromServer() {
         viewModelScope.launch {
             Log.d("QuestionsViewModel", "Chargement des questions depuis le serveur")
@@ -252,20 +205,15 @@ class QuestionsViewModel : ViewModel() {
         }
     }
     
-    /**
-     * Traiter la liste de questions reçue du serveur
-     */
     private fun handleQuestionsListFromServer(message: com.cultureg.data.api.WebSocketMessage) {
         viewModelScope.launch {
             try {
                 val serverQuestions = api.parseQuestions(message)
                 Log.d("QuestionsViewModel", "Questions reçues du serveur: ${serverQuestions.size}")
                 
-                // Fusionner avec les questions locales (éviter les doublons)
                 val localQuestions = repository.questions.value.toMutableList()
                 val localIds = localQuestions.map { it.id }.toSet()
                 
-                // Ajouter seulement les questions qui n'existent pas localement
                 serverQuestions.forEach { serverQuestion ->
                     if (serverQuestion.id !in localIds) {
                         repository.addQuestion(serverQuestion)
@@ -279,9 +227,6 @@ class QuestionsViewModel : ViewModel() {
     }
 }
 
-/**
- * État de l'UI pour l'écran Questions
- */
 data class QuestionsUiState(
     val searchQuery: String = "",
     val selectedCategory: String = "Toutes",

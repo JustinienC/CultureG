@@ -6,7 +6,6 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
-// Schéma de couleurs clair
 private val LightColorScheme = lightColorScheme(
     primary = Primary,
     onPrimary = OnPrimary,
@@ -21,7 +20,6 @@ private val LightColorScheme = lightColorScheme(
     error = Error,
 )
 
-// Schéma de couleurs sombre
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryLight,
     onPrimary = OnPrimary,
@@ -36,9 +34,6 @@ private val DarkColorScheme = darkColorScheme(
     error = Error,
 )
 
-/**
- * Thème principal de l'application CultureG
- */
 @Composable
 fun CultureGTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),

@@ -15,17 +15,13 @@ import com.cultureg.data.models.Difficulty
 import com.cultureg.data.models.Question
 import com.cultureg.data.models.QuestionCategories
 
-/**
- * Dialogue pour ajouter ou modifier une question (format Question-Réponse)
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuestionFormDialog(
-    question: Question? = null, // null = mode ajout, non-null = mode édition
+    question: Question? = null,
     onDismiss: () -> Unit,
     onSave: (question: String, correctAnswer: String, category: String, difficulty: Difficulty, timeLimit: Int?) -> Unit
 ) {
-    // État du formulaire
     var questionText by remember { mutableStateOf(question?.question ?: "") }
     var correctAnswer by remember { mutableStateOf(question?.correctAnswer ?: "") }
     var selectedCategory by remember { mutableStateOf(question?.category ?: "Général") }
@@ -47,7 +43,6 @@ fun QuestionFormDialog(
                 modifier = Modifier
                     .fillMaxSize()
             ) {
-                // En-tête
                 Surface(
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.fillMaxWidth()
@@ -74,7 +69,6 @@ fun QuestionFormDialog(
                     }
                 }
                 
-                // Formulaire scrollable
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -82,7 +76,6 @@ fun QuestionFormDialog(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Message d'erreur
                     errorMessage?.let { error ->
                         Card(
                             colors = CardDefaults.cardColors(
@@ -98,7 +91,6 @@ fun QuestionFormDialog(
                         }
                     }
                     
-                    // Question
                     OutlinedTextField(
                         value = questionText,
                         onValueChange = { questionText = it },
@@ -109,7 +101,6 @@ fun QuestionFormDialog(
                         supportingText = { Text("${questionText.length}/200") }
                     )
                     
-                    // Réponse correcte
                     OutlinedTextField(
                         value = correctAnswer,
                         onValueChange = { correctAnswer = it },
@@ -119,7 +110,6 @@ fun QuestionFormDialog(
                         supportingText = { Text("La réponse attendue (insensible à la casse et aux accents)") }
                     )
                     
-                    // Catégorie
                     ExposedDropdownMenuBox(
                         expanded = showCategoryMenu,
                         onExpandedChange = { showCategoryMenu = it }
@@ -152,7 +142,6 @@ fun QuestionFormDialog(
                         }
                     }
                     
-                    // Difficulté
                     ExposedDropdownMenuBox(
                         expanded = showDifficultyMenu,
                         onExpandedChange = { showDifficultyMenu = it }
@@ -187,7 +176,6 @@ fun QuestionFormDialog(
                     
                     Divider()
                     
-                    // Chronomètre
                     Text(
                         text = "Chronomètre",
                         style = MaterialTheme.typography.titleMedium
@@ -225,7 +213,6 @@ fun QuestionFormDialog(
                         )
                     }
                     
-                    // Info
                     Card(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -250,7 +237,6 @@ fun QuestionFormDialog(
                     }
                 }
                 
-                // Boutons d'action
                 Divider()
                 Row(
                     modifier = Modifier
@@ -265,7 +251,6 @@ fun QuestionFormDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            // Validation
                             when {
                                 questionText.isBlank() -> {
                                     errorMessage = "La question ne peut pas être vide"

@@ -18,9 +18,6 @@ import com.cultureg.viewmodel.ConnectionViewModel
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 
-/**
- * Écran de connexion au Raspberry Pi
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConnectionScreen(
@@ -56,7 +53,6 @@ fun ConnectionScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Icône de connexion
             Icon(
                 imageVector = when (connectionState) {
                     is ConnectionState.Connected -> Icons.Filled.CheckCircle
@@ -74,7 +70,6 @@ fun ConnectionScreen(
                 }
             )
             
-            // Statut de connexion
             Text(
                 text = when (connectionState) {
                     is ConnectionState.Connected -> "Connecté ✓"
@@ -93,7 +88,6 @@ fun ConnectionScreen(
             )
             
             if (isConnected) {
-                // Informations de connexion
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -121,7 +115,6 @@ fun ConnectionScreen(
                     }
                 }
                 
-                // Bouton déconnexion
                 Button(
                     onClick = { viewModel.disconnect() },
                     modifier = Modifier.fillMaxWidth(),
@@ -134,16 +127,13 @@ fun ConnectionScreen(
                     Text("Déconnecter")
                 }
                 
-                // Observer les messages PONG
                 LaunchedEffect(Unit) {
                     viewModel.messages
                         .filter { message -> message.type == "PONG" }
                         .collect { message ->
-                            pingResult = "✅ PONG reçu ! Connexion fonctionnelle"
+                            pingResult = "PONG reçu ! Connexion fonctionnelle"
                         }
                 }
-                
-                // Bouton test ping
                 
                 OutlinedButton(
                     onClick = { 
@@ -172,7 +162,6 @@ fun ConnectionScreen(
                     }
                 }
             } else {
-                // Afficher l'erreur si présente
                 if (connectionState is ConnectionState.Error) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -199,7 +188,6 @@ fun ConnectionScreen(
                     }
                 }
                 
-                // Formulaire de connexion
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -214,7 +202,6 @@ fun ConnectionScreen(
                             fontWeight = FontWeight.Bold
                         )
                         
-                        // Champ IP
                         OutlinedTextField(
                             value = ipInput,
                             onValueChange = { ipInput = it },
@@ -225,7 +212,6 @@ fun ConnectionScreen(
                             singleLine = true
                         )
                         
-                        // Champ Port
                         OutlinedTextField(
                             value = portInput,
                             onValueChange = { portInput = it },
@@ -236,7 +222,6 @@ fun ConnectionScreen(
                             singleLine = true
                         )
                         
-                        // Info
                         Card(
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -260,7 +245,6 @@ fun ConnectionScreen(
                             }
                         }
                         
-                        // Bouton connexion
                         Button(
                             onClick = {
                                 val port = portInput.toIntOrNull() ?: 8765
@@ -289,7 +273,6 @@ fun ConnectionScreen(
                     }
                 }
                 
-                // Adresses IP courantes
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -319,7 +302,6 @@ fun ConnectionScreen(
         }
     }
     
-    // Dialogue de test ping
     if (showTestDialog) {
         AlertDialog(
             onDismissRequest = { showTestDialog = false },

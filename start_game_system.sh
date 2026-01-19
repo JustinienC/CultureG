@@ -10,7 +10,7 @@ echo "=========================================="
 
 # Vérifier si on est dans le bon répertoire
 if [ ! -d "serveur" ] || [ ! -d "raspberry-pi" ]; then
-    echo "❌ Erreur: Ce script doit être exécuté depuis la racine du projet"
+    echo " Erreur: Ce script doit être exécuté depuis la racine du projet"
     echo "   Structure attendue:"
     echo "   - serveur/"
     echo "   - raspberry-pi/"
@@ -20,7 +20,7 @@ fi
 # Fonction de nettoyage
 cleanup() {
     echo ""
-    echo "🛑 Arrêt du système CultureG..."
+    echo " Arrêt du système CultureG..."
     if [ ! -z "$FLASK_PID" ]; then
         kill $FLASK_PID 2>/dev/null || true
         echo "   Flask arrêté"
@@ -29,7 +29,7 @@ cleanup() {
         kill $WEBSOCKET_PID 2>/dev/null || true
         echo "   WebSocket arrêté"
     fi
-    echo "✅ Système arrêté"
+    echo " Système arrêté"
     exit 0
 }
 
@@ -38,7 +38,7 @@ trap cleanup SIGINT SIGTERM
 
 # Vérifier Python
 if ! command -v python3 &> /dev/null; then
-    echo "❌ Python 3 n'est pas installé"
+    echo " Python 3 n'est pas installé"
     exit 1
 fi
 

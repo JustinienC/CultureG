@@ -23,9 +23,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cultureg.data.api.ConnectionState
 import com.cultureg.viewmodel.GameViewModel
 
-/**
- * Écran de jeu avec bouton d'enregistrement
- */
 @Composable
 fun GameScreen(
     viewModel: GameViewModel = viewModel()
@@ -36,7 +33,6 @@ fun GameScreen(
     val partialResult by viewModel.partialResult.collectAsState()
     val error by viewModel.errorMessage.collectAsState()
     
-    // Gestion de la permission microphone
     val hasAudioPermission = remember {
         ContextCompat.checkSelfPermission(
             context,
@@ -51,7 +47,6 @@ fun GameScreen(
             viewModel.startRecording()
         } else {
             viewModel.clearError()
-            // L'erreur sera gérée par SpeechRecognitionService
         }
     }
     
@@ -71,12 +66,10 @@ fun GameScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // En-tête avec état de connexion
         ConnectionStatusCard(connectionState)
         
         Spacer(modifier = Modifier.weight(1f))
         
-        // Résultat partiel de la reconnaissance
         partialResult?.let { text ->
             Card(
                 modifier = Modifier
@@ -96,7 +89,6 @@ fun GameScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
         
-        // Bouton d'enregistrement
         RecordButton(
             isListening = isListening,
             onStartClick = { requestPermissionAndStartRecording() },
@@ -105,7 +97,6 @@ fun GameScreen(
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // Message d'erreur
         error?.let { errorMsg ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -140,9 +131,6 @@ fun GameScreen(
     }
 }
 
-/**
- * Carte d'état de connexion
- */
 @Composable
 fun ConnectionStatusCard(connectionState: ConnectionState) {
     val (statusText, statusColor, statusIcon) = when (connectionState) {
@@ -179,9 +167,6 @@ fun ConnectionStatusCard(connectionState: ConnectionState) {
     }
 }
 
-/**
- * Bouton d'enregistrement
- */
 @Composable
 fun RecordButton(
     isListening: Boolean,
