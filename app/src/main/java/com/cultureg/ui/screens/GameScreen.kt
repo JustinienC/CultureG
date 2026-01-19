@@ -49,13 +49,6 @@ fun GameScreen(
         // Question actuelle (si disponible)
         currentQuestion?.let { question ->
             QuestionCard(question)
-        } ?: run {
-            Text(
-                text = "En attente d'une question...",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                textAlign = TextAlign.Center
-            )
         }
         
         Spacer(modifier = Modifier.weight(1f))
@@ -222,26 +215,15 @@ fun RecordButton(
     onStartClick: () -> Unit,
     onStopClick: () -> Unit
 ) {
-    val (buttonText, buttonColor, enabled) = when {
-        gameState is GameState.WaitingForQuestion -> Triple(
-            "En attente...",
-            MaterialTheme.colorScheme.surfaceVariant,
-            false
-        )
-        isListening -> Triple(
+    val (buttonText, buttonColor) = if (isListening) {
+        Pair(
             "Arrêter",
-            MaterialTheme.colorScheme.error,
-            true
+            MaterialTheme.colorScheme.error
         )
-        gameState is GameState.ProcessingAnswer || gameState is GameState.AnswerSent -> Triple(
-            "Traitement...",
-            MaterialTheme.colorScheme.surfaceVariant,
-            false
-        )
-        else -> Triple(
-            "Appuyer pour répondre",
-            MaterialTheme.colorScheme.primary,
-            true
+    } else {
+        Pair(
+            "Enregistrer",
+            MaterialTheme.colorScheme.primary
         )
     }
     
@@ -253,14 +235,13 @@ fun RecordButton(
                 onStartClick()
             }
         },
-        enabled = enabled,
+        enabled = true,
         modifier = Modifier
             .size(120.dp)
             .padding(16.dp),
         shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = buttonColor,
-            disabledContainerColor = buttonColor.copy(alpha = 0.6f)
+            containerColor = buttonColor
         )
     ) {
         Column(

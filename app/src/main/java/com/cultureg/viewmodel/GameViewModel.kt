@@ -23,7 +23,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     val connectionState = webSocketClient.connectionState
     
     // État du jeu
-    private val _gameState = MutableStateFlow<GameState>(GameState.WaitingForQuestion)
+    private val _gameState = MutableStateFlow<GameState>(GameState.Idle)
     val gameState: StateFlow<GameState> = _gameState.asStateFlow()
     
     // Question actuelle
@@ -90,7 +90,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                         currentScore = data.optInt("currentScore", 0)
                     )
                     _currentQuestion.value = question
-                    _gameState.value = GameState.QuestionReceived
                     Log.d(TAG, "Question reçue: ${question.question}")
                 } catch (e: Exception) {
                     Log.e(TAG, "Erreur parsing CURRENT_QUESTION: ${e.message}", e)
@@ -116,7 +115,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     // Réinitialiser pour la prochaine question après un délai
                     viewModelScope.launch {
                         kotlinx.coroutines.delay(3000)
-                        _gameState.value = GameState.WaitingForQuestion
+                        _gameState.value = GameState.Idle
                         _currentQuestion.value = null
                     }
                 } catch (e: Exception) {
@@ -124,7 +123,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             "GAME_ENDED" -> {
-                _gameState.value = GameState.GameEnded
+                _gameState.value = GameState.Idle
                 Log.d(TAG, "Jeu terminé")
             }
         }
@@ -134,11 +133,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
      * Démarrer l'enregistrement
      */
     fun startRecording() {
-        if (_gameState.value !is GameState.QuestionReceived) {
-            _errorMessage.value = "Aucune question en cours"
-            return
-        }
-        
         if (speechService.isListening.value) {
             // Si déjà en train d'enregistrer, arrêter
             stopRecording()
@@ -158,8 +152,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         
-        _gameState.value = GameState.ProcessingAnswer
         speechService.stopListening()
+        _gameState.value = GameState.Idle
         Log.d(TAG, "Arrêt de l'enregistrement")
     }
     
@@ -169,17 +163,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private fun sendAnswer(answer: String) {
         if (answer.isBlank()) {
             _errorMessage.value = "Réponse vide"
-            _gameState.value = GameState.QuestionReceived
             return
         }
         
         val success = webSocketClient.sendAnswer(answer)
         if (success) {
-            _gameState.value = GameState.AnswerSent
             Log.d(TAG, "Réponse envoyée: $answer")
         } else {
             _errorMessage.value = "Erreur lors de l'envoi de la réponse"
-            _gameState.value = GameState.QuestionReceived
         }
     }
     
@@ -204,18 +195,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
  * État du jeu
  */
 sealed class GameState {
-    object WaitingForQuestion : GameState()
-    data class QuestionReceived : GameState()
+    object Idle : GameState()
     object Recording : GameState()
-    object ProcessingAnswer : GameState()
-    object AnswerSent : GameState()
     data class AnswerProcessed(
         val isCorrect: Boolean,
         val correctAnswer: String,
         val userAnswer: String,
         val currentScore: Int
     ) : GameState()
-    object GameEnded : GameState()
 }
 
 /**
