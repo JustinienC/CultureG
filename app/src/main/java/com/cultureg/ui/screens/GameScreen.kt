@@ -1,5 +1,9 @@
 package com.cultureg.ui.screens
 
+import android.Manifest
+import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -10,9 +14,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cultureg.data.api.ConnectionState
 import com.cultureg.viewmodel.GameViewModel
@@ -26,12 +32,40 @@ import com.cultureg.viewmodel.QuestionData
 fun GameScreen(
     viewModel: GameViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val connectionState by viewModel.connectionState.collectAsState()
     val gameState by viewModel.gameState.collectAsState()
     val currentQuestion by viewModel.currentQuestion.collectAsState()
     val isListening by viewModel.isListening.collectAsState()
     val partialResult by viewModel.partialResult.collectAsState()
     val error by viewModel.errorMessage.collectAsState()
+    
+    // Gestion de la permission microphone
+    val hasAudioPermission = remember {
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
+    
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.startRecording()
+        } else {
+            viewModel.clearError()
+            // L'erreur sera gérée par SpeechRecognitionService
+        }
+    }
+    
+    fun requestPermissionAndStartRecording() {
+        if (hasAudioPermission) {
+            viewModel.startRecording()
+        } else {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
     
     Column(
         modifier = Modifier
@@ -77,7 +111,7 @@ fun GameScreen(
         RecordButton(
             isListening = isListening,
             gameState = gameState,
-            onStartClick = { viewModel.startRecording() },
+            onStartClick = { requestPermissionAndStartRecording() },
             onStopClick = { viewModel.stopRecording() }
         )
         

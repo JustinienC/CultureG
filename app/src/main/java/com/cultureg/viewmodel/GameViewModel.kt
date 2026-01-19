@@ -3,6 +3,7 @@ package com.cultureg.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.cultureg.data.api.ConnectionState
 import com.cultureg.data.api.WebSocketClient
 import com.cultureg.data.api.WebSocketMessage
 import com.cultureg.data.speech.SpeechRecognitionService
@@ -166,11 +167,21 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         
+        // Vérifier que le WebSocket est connecté
+        val connectionState = webSocketClient.connectionState.value
+        if (connectionState !is ConnectionState.Connected) {
+            _errorMessage.value = "Non connecté au serveur. État: $connectionState"
+            Log.e(TAG, "Tentative d'envoi sans connexion: $connectionState")
+            return
+        }
+        
         val success = webSocketClient.sendAnswer(answer)
         if (success) {
             Log.d(TAG, "Réponse envoyée: $answer")
+            _errorMessage.value = null
         } else {
-            _errorMessage.value = "Erreur lors de l'envoi de la réponse"
+            _errorMessage.value = "Erreur lors de l'envoi de la réponse. Vérifie la connexion."
+            Log.e(TAG, "Échec envoi réponse: $answer")
         }
     }
     

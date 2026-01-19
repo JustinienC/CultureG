@@ -135,26 +135,20 @@ class SpeechRecognitionService(private val context: Context) {
             
             override fun onError(error: Int) {
                 val errorMessage = when (error) {
-                    SpeechRecognizer.ERROR_AUDIO -> "Erreur audio"
-                    SpeechRecognizer.ERROR_CLIENT -> "Erreur client"
-                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Permissions insuffisantes"
-                    SpeechRecognizer.ERROR_NETWORK -> "Erreur réseau"
-                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Timeout réseau"
-                    SpeechRecognizer.ERROR_NO_MATCH -> "Aucune correspondance"
-                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Reconnaissance occupée"
-                    SpeechRecognizer.ERROR_SERVER -> "Erreur serveur"
-                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Timeout parole"
+                    SpeechRecognizer.ERROR_AUDIO -> "Erreur audio - Vérifie le microphone"
+                    SpeechRecognizer.ERROR_CLIENT -> "Erreur client - Réessaye"
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Permission microphone refusée - Active-la dans les paramètres"
+                    SpeechRecognizer.ERROR_NETWORK -> "Erreur réseau - La reconnaissance vocale nécessite Internet. Vérifie ta connexion."
+                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Timeout réseau - Vérifie ta connexion Internet"
+                    SpeechRecognizer.ERROR_NO_MATCH -> "Aucune correspondance - Réessaye en parlant plus clairement"
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Reconnaissance occupée - Attends un instant"
+                    SpeechRecognizer.ERROR_SERVER -> "Erreur serveur Google - Réessaye plus tard"
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Timeout parole - Parle plus fort ou plus près du micro"
                     else -> "Erreur inconnue: $error"
                 }
-                Log.e(TAG, "Erreur reconnaissance: $errorMessage")
+                Log.e(TAG, "Erreur reconnaissance: $errorMessage (code: $error)")
                 _error.value = errorMessage
                 _isListening.value = false
-                
-                // Si l'erreur n'est pas critique, on peut continuer
-                if (error != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS && 
-                    error != SpeechRecognizer.ERROR_CLIENT) {
-                    // On ne relance pas automatiquement, l'utilisateur doit réessayer
-                }
             }
             
             override fun onResults(results: Bundle?) {
